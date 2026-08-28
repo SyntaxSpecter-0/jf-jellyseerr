@@ -19,7 +19,8 @@
     var STYLE_ID = 'jfSeerrStyle';
 
     function isHomePage() {
-        return location.hash.indexOf('#/home.html') === 0 || location.hash === '#/' || location.hash === '';
+        // Newer Jellyfin uses #/home, older versions used #/home.html - match both.
+        return location.hash.indexOf('#/home') === 0 || location.hash === '#/' || location.hash === '';
     }
 
     function ensureStyles() {
