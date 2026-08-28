@@ -34,7 +34,12 @@ function proxyGet(res, path) {
         jf.log.error('jellyseerr-requests: GET ' + path + ' -> ' + resp.status);
         return res.status(502).json({ error: 'Jellyseerr request failed', status: resp.status });
     }
-    return res.text(resp.body, 'application/json');
+    try {
+        return res.json(JSON.parse(resp.body));
+    } catch (e) {
+        jf.log.error('jellyseerr-requests: bad JSON from Jellyseerr for ' + path);
+        return res.status(502).json({ error: 'Jellyseerr returned invalid JSON' });
+    }
 }
 
 // Search movies / tv / people
@@ -94,5 +99,10 @@ jf.routes.post('/request', function (req, res) {
         jf.log.error('jellyseerr-requests: POST /request -> ' + resp.status + ' ' + resp.body);
         return res.status(resp.status || 502).json({ error: 'Request failed', detail: resp.body });
     }
-    return res.text(resp.body, 'application/json');
+    try {
+        return res.json(JSON.parse(resp.body));
+    } catch (e) {
+        jf.log.error('jellyseerr-requests: bad JSON from Jellyseerr for /request');
+        return res.status(502).json({ error: 'Jellyseerr returned invalid JSON' });
+    }
 });
