@@ -15,9 +15,9 @@
       {
         "key": "JELLYSEERR_URL",
         "name": "Jellyseerr URL",
-        "description": "Base URL of your Jellyseerr instance, e.g. https://jellyseerr.claymaver.com",
+        "description": "Base URL of your Jellyseerr instance, e.g. https://jellyseerr.example.com",
         "type": "text",
-        "default": "https://jellyseerr.claymaver.com"
+        "default": ""
       },
       {
         "key": "JELLYSEERR_API_KEY",

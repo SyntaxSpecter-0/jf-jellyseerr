@@ -1,7 +1,7 @@
 # Jellyseerr Requests — JellyFrame mod
 
-A native "Requests" tab for Jellyfin, backed by your own Jellyseerr instance
-(`link`). No iframe — it's a real page with search,
+A native "Requests" tab for Jellyfin, backed by your own Jellyseerr instance.
+It's a real page with search,
 a trending grid, and one-click request buttons, added as a link in the left
 nav drawer.
 
@@ -36,8 +36,8 @@ nav drawer.
    URL, click **Load Mods**, enable **Jellyseerr Requests**.
 
 5. You'll get a config dialog for the two vars:
-   - `JELLYSEERR_URL` — already defaulted to `https://REPLACE-WITH-YOUR-HOST/...``,
-     change if needed.
+   - `JELLYSEERR_URL` — no default, since this repo is public. Enter your
+     instance's base URL, e.g. `https://jellyseerr.example.com`.
    - `JELLYSEERR_API_KEY` — from Jellyseerr's **Settings → General → API Key**.
 
 6. **Save & Apply**, then hard-refresh Jellyfin (**Ctrl+Shift+R**). A
