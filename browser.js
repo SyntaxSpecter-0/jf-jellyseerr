@@ -41,10 +41,12 @@
             '#' + CONTENT_ID + ' .jfSeerrCardText { font-size:.85em; margin-top:.35em; line-height:1.25; }' +
             '#' + CONTENT_ID + ' .jfSeerrReqBtn { width:100%; margin-top:.4em; font-size:.75em; padding:.4em; }' +
             '#' + CONTENT_ID + ' .jfSeerrSeasonPanel { display:flex; flex-direction:column; gap:.3em; margin-top:.4em; max-height:150px; overflow-y:auto; font-size:.75em; }' +
+            '#' + CONTENT_ID + ' .jfSeerrConfirmMsg { font-weight:600; margin-bottom:.15em; }' +
             '#' + CONTENT_ID + ' .jfSeerrSeasonRow { display:flex; align-items:center; gap:.4em; }' +
             '#' + CONTENT_ID + ' .jfSeerrSeasonActions { display:flex; gap:.4em; margin-top:.3em; }' +
             '#' + CONTENT_ID + ' .jfSeerrSeasonActions button { flex:1; font-size:.72em; padding:.35em; }' +
-            '#' + CONTENT_ID + ' .jfSeerrEmpty { opacity:.6; padding:2em 0; text-align:center; grid-column:1/-1; }';
+            '#' + CONTENT_ID + ' .jfSeerrEmpty { opacity:.6; padding:2em 0; text-align:center; grid-column:1/-1; }' +
+            '#' + CONTENT_ID + ' .jfSeerrEmpty:hover { opacity:.85; }';
         document.head.appendChild(style);
     }
 
@@ -203,7 +205,7 @@
                     if (item.mediaType === 'tv') {
                         openSeasonPicker(item, btn, panelHolder);
                     } else {
-                        requestMedia({ mediaType: item.mediaType, mediaId: item.id }, btn);
+                        openConfirmPanel(item, btn, panelHolder);
                     }
                 });
 
@@ -222,7 +224,7 @@
                 .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
                 .then(function (result) {
                     if (!result.ok) throw new Error((result.data && result.data.error) || 'Request failed');
-                    btn.textContent = 'Requested';
+                    btn.textContent = '\u2713 Requested';
                     return true;
                 })
                 .catch(function (err) {
@@ -231,6 +233,47 @@
                     console.error(err);
                     return false;
                 });
+        }
+
+        // Confirmation panel for movies (single click can't fire a request by accident)
+        function openConfirmPanel(item, btn, holder) {
+            if (holder.querySelector('.jfSeerrSeasonPanel')) return;
+            btn.disabled = true;
+
+            var panel = document.createElement('div');
+            panel.className = 'jfSeerrSeasonPanel';
+
+            var msg = document.createElement('div');
+            msg.className = 'jfSeerrConfirmMsg';
+            msg.textContent = 'Request "' + (item.title || item.name || 'this title') + '"?';
+            panel.appendChild(msg);
+
+            var actions = document.createElement('div');
+            actions.className = 'jfSeerrSeasonActions';
+
+            var confirmBtn = document.createElement('button');
+            confirmBtn.type = 'button';
+            confirmBtn.className = 'raised button-submit emby-button';
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.addEventListener('click', function () {
+                requestMedia({ mediaType: item.mediaType, mediaId: item.id }, btn).then(function (ok) {
+                    if (ok) holder.innerHTML = '';
+                });
+            });
+
+            var cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'raised emby-button';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.addEventListener('click', function () {
+                holder.innerHTML = '';
+                btn.disabled = false;
+            });
+
+            actions.appendChild(confirmBtn);
+            actions.appendChild(cancelBtn);
+            panel.appendChild(actions);
+            holder.appendChild(panel);
         }
 
         function openSeasonPicker(item, btn, holder) {
@@ -257,6 +300,11 @@
 
         function renderSeasonPanel(panel, item, btn, holder, seasons) {
             panel.innerHTML = '';
+
+            var titleLine = document.createElement('div');
+            titleLine.className = 'jfSeerrConfirmMsg';
+            titleLine.textContent = 'Select seasons of "' + (item.name || item.title || 'this show') + '"';
+            panel.appendChild(titleLine);
 
             var allRow = document.createElement('label');
             allRow.className = 'jfSeerrSeasonRow';
@@ -294,7 +342,7 @@
             var confirmBtn = document.createElement('button');
             confirmBtn.type = 'button';
             confirmBtn.className = 'raised button-submit emby-button';
-            confirmBtn.textContent = 'Request';
+            confirmBtn.textContent = 'Confirm';
             confirmBtn.addEventListener('click', function () {
                 var selected = boxes.filter(function (b) { return b.checked; }).map(function (b) { return parseInt(b.value, 10); });
                 if (!selected.length) return;
@@ -317,18 +365,38 @@
             panel.appendChild(actions);
         }
 
+        function renderStatus(text, clickable, onClick) {
+            grid.innerHTML = '';
+            var el = document.createElement('div');
+            el.className = 'jfSeerrEmpty';
+            el.textContent = text;
+            if (clickable) {
+                el.style.cursor = 'pointer';
+                el.addEventListener('click', onClick);
+            }
+            grid.appendChild(el);
+        }
+
         function loadTrending() {
+            renderStatus('Loading...');
             fetch(API_BASE + 'discover')
                 .then(function (r) { return r.json(); })
                 .then(function (data) { renderResults(data.results || []); })
-                .catch(function (err) { console.error(err); });
+                .catch(function (err) {
+                    console.error(err);
+                    renderStatus('Could not load trending - tap to retry', true, loadTrending);
+                });
         }
 
         function loadSearch(query) {
+            renderStatus('Searching...');
             fetch(API_BASE + 'search?query=' + encodeURIComponent(query))
                 .then(function (r) { return r.json(); })
                 .then(function (data) { renderResults(data.results || []); })
-                .catch(function (err) { console.error(err); });
+                .catch(function (err) {
+                    console.error(err);
+                    renderStatus('Search failed - tap to retry', true, function () { loadSearch(query); });
+                });
         }
 
         input.addEventListener('input', function () {
