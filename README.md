@@ -36,7 +36,7 @@ nav drawer.
    URL, click **Load Mods**, enable **Jellyseerr Requests**.
 
 5. You'll get a config dialog for the two vars:
-   - `JELLYSEERR_URL` — already defaulted to `https://jellyseerr.claymaver.com`,
+   - `JELLYSEERR_URL` — already defaulted to `https://REPLACE-WITH-YOUR-HOST/...``,
      change if needed.
    - `JELLYSEERR_API_KEY` — from Jellyseerr's **Settings → General → API Key**.
 
