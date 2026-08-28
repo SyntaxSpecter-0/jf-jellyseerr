@@ -1,0 +1,31 @@
+[
+  {
+    "id": "jellyseerr-requests",
+    "name": "Jellyseerr Requests",
+    "author": "claymaver",
+    "description": "Adds a native Requests tab backed by your Jellyseerr instance - search, browse trending, and submit requests without leaving Jellyfin.",
+    "version": "1.0.0",
+    "jellyfin": "10.10+",
+    "tags": ["requests", "jellyseerr", "server"],
+    "jsUrl": "https://cdn.jsdelivr.net/gh/SyntaxSpecter-0/jf-jellyseerr@main/browser.js",
+    "serverJs": "https://cdn.jsdelivr.net/gh/SyntaxSpecter-0/jf-jellyseerr@main/server.js",
+    "permissions": ["http"],
+    "requires": [],
+    "vars": [
+      {
+        "key": "JELLYSEERR_URL",
+        "name": "Jellyseerr URL",
+        "description": "Base URL of your Jellyseerr instance, e.g. https://jellyseerr.claymaver.com",
+        "type": "text",
+        "default": "https://jellyseerr.claymaver.com"
+      },
+      {
+        "key": "JELLYSEERR_API_KEY",
+        "name": "Jellyseerr API Key",
+        "description": "Found in Jellyseerr under Settings -> General -> API Key. Stays server-side, never sent to the browser.",
+        "type": "text",
+        "default": ""
+      }
+    ]
+  }
+]
