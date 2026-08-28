@@ -1,7 +1,7 @@
 # Jellyseerr Requests — JellyFrame mod
 
 A native "Requests" tab for Jellyfin, backed by your own Jellyseerr instance
-(`https://jellyseerr.claymaver.com`). No iframe — it's a real page with search,
+(`link`). No iframe — it's a real page with search,
 a trending grid, and one-click request buttons, added as a link in the left
 nav drawer.
 
