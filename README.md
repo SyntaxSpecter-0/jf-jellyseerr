@@ -1,80 +1,59 @@
-# Jellyseerr Requests — JellyFrame mod
+# Jellyseerr Requests mod for JellyFrame
 
-A native "Requests" tab for Jellyfin, backed by your own Jellyseerr instance.
-It's a real page with search,
-a trending grid, and one-click request buttons, added as a link in the left
-nav drawer.
+Adds a Requests tab to the Jellyfin home screen, backed by your Jellyseerr
+instance. It's a real Jellyfin tab, not an iframe, so it picks up your theme
+and works on mobile like any other tab.
 
-## How it's built
+## Files
 
-- **`server.js`** runs inside Jellyfin (via JellyFrame's server-side JS engine).
-  It holds your Jellyseerr URL and API key and proxies three things:
-  - `GET /search?query=...` → Jellyseerr `/api/v1/search`
-  - `GET /discover` → Jellyseerr `/api/v1/discover/trending`
-  - `POST /request` → Jellyseerr `/api/v1/request`
-  It also serves the tab's HTML page itself at the mod's root path. The API
-  key never reaches the browser.
-- **`browser.js`** runs in every visitor's browser and injects a "Requests"
-  link into the Jellyfin nav drawer, pointing at the page above.
-- **`mods.json`** is the manifest entry that ties the two together and defines
-  the two configurable variables (`JELLYSEERR_URL`, `JELLYSEERR_API_KEY`).
+- `server.js` - runs on the server. Holds your Jellyseerr URL and API key,
+  proxies search/discover/request calls to Jellyseerr. Key never reaches
+  the browser.
+- `browser.js` - adds the tab button and content pane to the home screen,
+  builds the UI (search box, poster grid, request buttons, season picker
+  for TV).
+- `mods.json` - manifest that ties both together and defines the config
+  fields you fill in when enabling the mod.
 
-## Setup
+## Install
 
-1. **Host the two JS files somewhere JellyFrame can fetch them** — a GitHub
-   repo served via `cdn.jsdelivr.net`, a gist, your own web server, whatever
-   you already use for other mods. You need public HTTPS URLs for
-   `server.js` and `browser.js`.
+1. Push all three files to the root of your repo (main branch).
+2. Jellyfin: Dashboard > Mods > Marketplace, paste
+   `https://cdn.jsdelivr.net/gh/SyntaxSpecter-0/jf-jellyseerr@main/mods.json`,
+   click Load Mods, enable it.
+3. Fill in `JELLYSEERR_URL` and `JELLYSEERR_API_KEY` (from Jellyseerr's
+   Settings > General).
+4. Save & Apply, hard refresh (Ctrl+Shift+R).
 
-2. **Edit `mods.json`** and replace the two
-   `https://REPLACE-WITH-YOUR-HOST/...` URLs with the real ones from step 1.
+If you push an update later and don't see it, that's jsDelivr's cache -
+either wait it out or bump the version in `mods.json`.
 
-3. **Host `mods.json`** itself somewhere too (same options as above) — this
-   is the URL you'll paste into the JellyFrame Marketplace.
+## TV seasons
 
-4. In Jellyfin: **Dashboard → Mods → Marketplace**, paste your `mods.json`
-   URL, click **Load Mods**, enable **Jellyseerr Requests**.
+Clicking Request on a show loads its season list and lets you check which
+ones to request. Already-available or already-requested seasons are greyed
+out. Movies just request straight away.
 
-5. You'll get a config dialog for the two vars:
-   - `JELLYSEERR_URL` — no default, since this repo is public. Enter your
-     instance's base URL, e.g. `https://jellyseerr.example.com`.
-   - `JELLYSEERR_API_KEY` — from Jellyseerr's **Settings → General → API Key**.
+## Not authenticated - read this
 
-6. **Save & Apply**, then hard-refresh Jellyfin (**Ctrl+Shift+R**). A
-   "Requests" entry should appear in the left nav.
+The mod's API routes aren't behind Jellyfin's login. Anyone who finds the
+URL (`/JellyFrame/mods/jellyseerr-requests/api/*`) can hit it directly and
+fire off requests using your API key, no Jellyfin account needed. Cloudflare
+proxying alone doesn't stop this - it just relays traffic, it doesn't add
+auth to a specific path on its own.
 
-## Get your Jellyseerr API key
+Check if you're exposed: log out of Jellyfin (or use incognito) and open
+`https://your-domain/JellyFrame/mods/jellyseerr-requests/api/discover`. If
+you get JSON back instead of a login prompt, it's open.
 
-In Jellyseerr: **Settings → General**, scroll to **API Key**, click the eye
-icon to reveal it (or regenerate one). This key has full access to submit
-requests on your behalf — treat it like a password.
+Fix it with Cloudflare Access:
+1. Zero Trust dashboard > Access > Applications > Add an application > Self-hosted.
+2. Domain = your Jellyfin host, path = `/JellyFrame/mods/jellyseerr-requests*`
+   (just that path, not the whole domain - otherwise you lock out normal
+   Jellyfin logins and other apps/clients).
+3. Add a policy (email OTP or your usual identity provider).
+4. Save. That path now needs a Cloudflare login before it even reaches
+   Jellyfin.
 
-## Important: this endpoint isn't behind Jellyfin login
-
-`jf.routes` handlers are served on the same Jellyfin host but aren't gated by
-a Jellyfin session check. Anyone who can reach your Jellyfin server's HTTP
-port can hit `/JellyFrame/mods/jellyseerr-requests/api/*` and submit requests
-using your API key, even without a Jellyfin account. This is a non-issue if:
-
-- Jellyfin is only reachable on your LAN/VPN, or
-- you're comfortable with anyone who *can* reach it being able to request media.
-
-If Jellyfin is exposed to the internet and you want this locked down further,
-put an auth layer in front of just that path in your reverse proxy (e.g. HTTP
-basic auth, an IP allowlist, or a Jellyfin-aware auth_request check) before
-relying on it.
-
-## Tweaking
-
-- **Nav link styling/position**: `browser.js` tries to clone the CSS classes
-  of an existing drawer link so it matches your theme automatically. If it
-  looks off or doesn't appear, open devtools, inspect `.mainDrawer`, and
-  adjust the selector in `injectNavLink()`.
-- **Season selection for TV**: clicking "Request" on a show fetches its
-  season list from Jellyseerr (`GET /tv/:id`) and opens a checklist —
-  seasons already available or already requested are greyed out, and there's
-  an "All seasons" shortcut. Only the seasons you check are sent.
-- **4K requests / advanced options**: not wired up. If you want it later,
-  Jellyseerr's `/api/v1/request` accepts additional fields (`is4k`,
-  `serverId`, `profileId`, etc.) — add them to the `payload` object in the
-  `/request` handler in `server.js`.
+A hardcoded secret in `server.js` isn't a real fix here since anyone can
+read it straight out of `browser.js`'s source.
