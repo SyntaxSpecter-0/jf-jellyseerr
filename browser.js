@@ -45,13 +45,18 @@
             '@media (min-width:1400px) { #' + CONTENT_ID + ' .sections { padding:1.5em 6em 0; } }' +
             // ---- In-tab grid: layout only, colors inherited from Jellyfin's theme ----
             '#' + CONTENT_ID + ' .jfSeerrTop { display:flex; flex-wrap:wrap; align-items:center; gap:.75em; margin-bottom:1.25em; }' +
-            '#' + CONTENT_ID + ' .jfSeerrTop input { flex:1; min-width:150px; }' +
+            '#' + CONTENT_ID + ' .jfSeerrSearchWrap { position:relative; flex:1; min-width:150px; display:flex; }' +
+            '#' + CONTENT_ID + ' .jfSeerrSearchWrap input { flex:1; padding-right:2.2em; }' +
+            '#' + CONTENT_ID + ' .jfSeerrSearchClear { position:absolute; right:.4em; top:50%; transform:translateY(-50%); width:1.8em; height:1.8em; border:none; border-radius:50%; background:rgba(128,128,128,.25); color:inherit; opacity:.8; cursor:pointer; font-size:.8em; line-height:1; }' +
+            '#' + CONTENT_ID + ' .jfSeerrSearchClear:hover { opacity:1; background:rgba(128,128,128,.4); }' +
             '#' + CONTENT_ID + ' .jfSeerrSectionTitle { font-size:.9em; font-weight:600; opacity:.7; text-transform:uppercase; letter-spacing:.06em; margin:0 0 .6em; }' +
             '#' + CONTENT_ID + ' .jfSeerrRequestsRow { display:flex; gap:.75em; overflow-x:auto; padding-bottom:.5em; margin-bottom:1.75em; }' +
             '#' + CONTENT_ID + ' .jfSeerrRequestsRow::-webkit-scrollbar { height:6px; }' +
-            '#' + CONTENT_ID + ' .jfSeerrReqCard { flex:0 0 auto; width:110px; cursor:default; }' +
-            '#' + CONTENT_ID + ' .jfSeerrReqCard .cardImageContainer { position:relative; border-radius:6px; overflow:hidden; aspect-ratio:2/3; box-shadow:0 2px 8px rgba(0,0,0,.35); }' +
-            '#' + CONTENT_ID + ' .jfSeerrReqCard img.cardImage { width:100%; height:100%; object-fit:cover; display:block; }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard { flex:0 0 auto; width:110px; cursor:pointer; }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard .cardImageContainer { position:relative; border-radius:6px; overflow:hidden; aspect-ratio:2/3; box-shadow:0 2px 8px rgba(0,0,0,.35); transition:box-shadow .15s ease; }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard:hover .cardImageContainer { box-shadow:0 6px 16px rgba(0,0,0,.5); }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard img.cardImage { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s ease; }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard:hover img.cardImage { transform:scale(1.05); }' +
             '#' + CONTENT_ID + ' .jfSeerrReqTitle { font-size:.78em; font-weight:500; margin-top:.4em; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
             '#' + CONTENT_ID + ' .jfSeerrReqMeta { font-size:.68em; opacity:.6; margin-top:.15em; }' +
             '#' + CONTENT_ID + ' .jfSeerrGrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:1em; }' +
@@ -72,6 +77,7 @@
             // these mirror Jellyseerr's own status colors)
             '.jfSeerrBadge { position:absolute; top:.4em; left:.4em; padding:.2em .55em; border-radius:1em; font-size:.65em; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.03em; box-shadow:0 1px 4px rgba(0,0,0,.4); }' +
             '.jfSeerrBadge.available { background:#22c55e; }' +
+            '.jfSeerrBadge.partial { background:#14b8a6; }' +
             '.jfSeerrBadge.requested { background:#f59e0b; }' +
             '.jfSeerrBadge.declined { background:#ef4444; }' +
             '.jfSeerrRating { position:absolute; top:.4em; right:.4em; padding:.2em .5em; border-radius:1em; font-size:.65em; font-weight:700; color:#fff; background:rgba(0,0,0,.7); }' +
@@ -213,11 +219,29 @@
         var top = document.createElement('div');
         top.className = 'jfSeerrTop';
 
+        var searchWrap = document.createElement('div');
+        searchWrap.className = 'jfSeerrSearchWrap';
+
         var input = document.createElement('input');
         input.type = 'text';
         input.className = 'emby-input';
         input.placeholder = 'Search movies and shows...';
-        top.appendChild(input);
+        searchWrap.appendChild(input);
+
+        var clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'jfSeerrSearchClear';
+        clearBtn.textContent = '\u2715';
+        clearBtn.style.display = 'none';
+        clearBtn.addEventListener('click', function () {
+            input.value = '';
+            clearBtn.style.display = 'none';
+            input.focus();
+            loadTrending();
+        });
+        searchWrap.appendChild(clearBtn);
+
+        top.appendChild(searchWrap);
         root.appendChild(top);
 
         var gridSectionTitle = document.createElement('div');
@@ -254,7 +278,8 @@
             if (reqItem.status === 3) return { label: 'Declined', cls: 'declined' };
             if (reqItem.status === 1) return { label: 'Pending', cls: 'requested' };
             var ms = reqItem.media && reqItem.media.status;
-            if (ms === 4 || ms === 5) return { label: 'Available', cls: 'available' };
+            if (ms === 5) return { label: 'Available', cls: 'available' };
+            if (ms === 4) return { label: 'Partial', cls: 'partial' };
             return { label: 'Processing', cls: 'requested' };
         }
 
@@ -280,7 +305,8 @@
                                     reqItem: reqItem,
                                     mediaType: mediaType,
                                     title: detail.title || detail.name || 'Untitled',
-                                    posterPath: detail.posterPath
+                                    posterPath: detail.posterPath,
+                                    detail: detail
                                 };
                             })
                             .catch(function () { return null; });
@@ -334,6 +360,23 @@
                 card.appendChild(metaEl);
 
                 requestsRow.appendChild(card);
+
+                card.addEventListener('click', function () {
+                    var d = entry.detail;
+                    openModal({
+                        id: d.id,
+                        mediaType: entry.mediaType,
+                        title: d.title,
+                        name: d.name,
+                        overview: d.overview,
+                        posterPath: d.posterPath,
+                        backdropPath: d.backdropPath,
+                        voteAverage: d.voteAverage,
+                        releaseDate: d.releaseDate,
+                        firstAirDate: d.firstAirDate,
+                        mediaInfo: d.mediaInfo
+                    });
+                });
             });
         }
 
@@ -355,7 +398,8 @@
                 var title = item.title || item.name || 'Untitled';
                 var date = (item.releaseDate || item.firstAirDate || '').slice(0, 4);
                 var status = item.mediaInfo && item.mediaInfo.status;
-                var isDone = status === 4 || status === 5;
+                var isAvailable = status === 5;
+                var isPartial = status === 4;
                 var isPending = status === 2 || status === 3;
 
                 var card = document.createElement('div');
@@ -370,10 +414,12 @@
                 img.src = posterUrl(item.posterPath);
                 imgWrap.appendChild(img);
 
-                if (isDone || isPending) {
+                if (isAvailable || isPartial || isPending) {
                     var badge = document.createElement('div');
-                    badge.className = 'jfSeerrBadge ' + (isDone ? 'available' : 'requested');
-                    badge.textContent = isDone ? 'Available' : 'Requested';
+                    var badgeCls = isAvailable ? 'available' : isPartial ? 'partial' : 'requested';
+                    var badgeLabel = isAvailable ? 'Available' : isPartial ? 'Partial' : 'Requested';
+                    badge.className = 'jfSeerrBadge ' + badgeCls;
+                    badge.textContent = badgeLabel;
                     imgWrap.appendChild(badge);
                 }
 
@@ -447,11 +493,20 @@
 
         input.addEventListener('input', function () {
             var value = input.value.trim();
+            clearBtn.style.display = value ? '' : 'none';
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(function () {
                 if (value.length >= 2) loadSearch(value);
                 else loadTrending();
             }, 350);
+        });
+
+        input.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            clearTimeout(debounceTimer);
+            var value = input.value.trim();
+            if (value.length >= 2) loadSearch(value);
+            else loadTrending();
         });
 
         // ---- Request modal ----
@@ -553,7 +608,7 @@
             var mediaStatus = item.mediaInfo && item.mediaInfo.status;
             var quotaBlocked = false;
 
-            if (mediaStatus === 4 || mediaStatus === 5) {
+            if (mediaStatus === 5) {
                 primaryBtn.textContent = 'Available';
                 primaryBtn.disabled = true;
             } else if (mediaStatus === 2 || mediaStatus === 3) {
