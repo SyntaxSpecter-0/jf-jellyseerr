@@ -37,9 +37,12 @@
         style.id = STYLE_ID;
         style.textContent =
             // Edge padding for the whole tab - Jellyfin's own .sections wrapper
-            // doesn't add enough on its own for this content.
-            '#' + CONTENT_ID + ' .sections { padding:0 1em; }' +
-            '@media (min-width:600px) { #' + CONTENT_ID + ' .sections { padding:0 2em; } }' +
+            // doesn't add enough on its own for this content. Top padding
+            // keeps the section title clear of the sticky nav bar above it.
+            '#' + CONTENT_ID + ' .sections { padding:1.5em 1em 0; }' +
+            '@media (min-width:600px) { #' + CONTENT_ID + ' .sections { padding:1.5em 2em 0; } }' +
+            '@media (min-width:1000px) { #' + CONTENT_ID + ' .sections { padding:1.5em 3.5em 0; } }' +
+            '@media (min-width:1400px) { #' + CONTENT_ID + ' .sections { padding:1.5em 6em 0; } }' +
             // ---- In-tab grid: layout only, colors inherited from Jellyfin's theme ----
             '#' + CONTENT_ID + ' .jfSeerrTop { display:flex; flex-wrap:wrap; align-items:center; gap:.75em; margin-bottom:1em; }' +
             '#' + CONTENT_ID + ' .jfSeerrTop input { flex:1; min-width:150px; }' +
