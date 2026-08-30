@@ -50,7 +50,7 @@
             '#' + CONTENT_ID + ' .jfSeerrGrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:1em; }' +
             '@media (min-width:600px) { #' + CONTENT_ID + ' .jfSeerrGrid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); } }' +
             '#' + CONTENT_ID + ' .jfSeerrCard { display:flex; flex-direction:column; cursor:pointer; }' +
-            '#' + CONTENT_ID + ' .jfSeerrCard .cardImageContainer { position:relative; border-radius:4px; overflow:hidden; }' +
+            '#' + CONTENT_ID + ' .jfSeerrCard .cardImageContainer { position:relative; border-radius:4px; overflow:hidden; aspect-ratio:2/3; }' +
             '#' + CONTENT_ID + ' .jfSeerrCard img.cardImage { width:100%; height:100%; object-fit:cover; display:block; transition:transform .15s ease; }' +
             '#' + CONTENT_ID + ' .jfSeerrCard:hover img.cardImage { transform:scale(1.04); }' +
             '#' + CONTENT_ID + ' .jfSeerrCardText { font-size:.85em; margin-top:.35em; line-height:1.25; }' +
@@ -74,12 +74,12 @@
             '.jfSeerrModalOverview { font-size:.85em; line-height:1.45; opacity:.9; max-height:6.5em; overflow-y:auto; margin-bottom:1em; }' +
             '.jfSeerrSeasonGrid { display:flex; flex-wrap:wrap; gap:.4em; margin-bottom:1em; }' +
             '.jfSeerrSeasonChip { padding:.4em .8em; border-radius:1.2em; border:1px solid #444; background:#242424; color:#eee; font-size:.8em; cursor:pointer; }' +
-            '.jfSeerrSeasonChip.active { background:#00a4dc; border-color:#00a4dc; color:#fff; }' +
+            '.jfSeerrSeasonChip.active { background:#8b5cf6; border-color:#8b5cf6; color:#fff; }' +
             '.jfSeerrSeasonChip.disabled { opacity:.4; cursor:default; }' +
             '.jfSeerrSeasonChip.all { font-weight:700; }' +
             '.jfSeerrModalActions { display:flex; gap:.6em; }' +
             '.jfSeerrModalActions button { flex:1; padding:.6em; border-radius:6px; border:none; font-size:.9em; cursor:pointer; }' +
-            '.jfSeerrModalActions .jfSeerrPrimary { background:#00a4dc; color:#fff; }' +
+            '.jfSeerrModalActions .jfSeerrPrimary { background:#8b5cf6; color:#fff; }' +
             '.jfSeerrModalActions .jfSeerrPrimary:disabled { background:#3a3a3a; color:#888; cursor:default; }' +
             '.jfSeerrModalActions .jfSeerrSecondary { background:#2a2a2a; color:#eee; }' +
             '.jfSeerrModalStatus { font-size:.82em; margin-top:.75em; min-height:1.2em; }' +

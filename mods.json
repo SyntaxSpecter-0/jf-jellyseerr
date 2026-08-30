@@ -4,7 +4,7 @@
     "name": "Jellyseerr Requests",
     "author": "claymaver",
     "description": "Adds a real Home-screen tab backed by your Jellyseerr instance - search, browse trending, see recent requests, and submit requests (with per-season picking) via a Jellyseerr-style request modal, without leaving Jellyfin.",
-    "version": "3.0.0",
+    "version": "3.0.2",
     "jellyfin": "10.10+",
     "tags": ["requests", "jellyseerr", "server"],
     "jsUrl": "https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/main/browser.js",
