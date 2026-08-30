@@ -36,6 +36,10 @@
         var style = document.createElement('style');
         style.id = STYLE_ID;
         style.textContent =
+            // Edge padding for the whole tab - Jellyfin's own .sections wrapper
+            // doesn't add enough on its own for this content.
+            '#' + CONTENT_ID + ' .sections { padding:0 1em; }' +
+            '@media (min-width:600px) { #' + CONTENT_ID + ' .sections { padding:0 2em; } }' +
             // ---- In-tab grid: layout only, colors inherited from Jellyfin's theme ----
             '#' + CONTENT_ID + ' .jfSeerrTop { display:flex; flex-wrap:wrap; align-items:center; gap:.75em; margin-bottom:1em; }' +
             '#' + CONTENT_ID + ' .jfSeerrTop input { flex:1; min-width:150px; }' +
@@ -72,11 +76,13 @@
             '.jfSeerrModalTitle { font-size:1.15em; font-weight:700; margin-bottom:.25em; }' +
             '.jfSeerrModalMeta { font-size:.8em; opacity:.7; margin-bottom:.75em; }' +
             '.jfSeerrModalOverview { font-size:.85em; line-height:1.45; opacity:.9; max-height:6.5em; overflow-y:auto; margin-bottom:1em; }' +
-            '.jfSeerrSeasonGrid { display:flex; flex-wrap:wrap; gap:.4em; margin-bottom:1em; }' +
-            '.jfSeerrSeasonChip { padding:.4em .8em; border-radius:1.2em; border:1px solid #444; background:#242424; color:#eee; font-size:.8em; cursor:pointer; }' +
-            '.jfSeerrSeasonChip.active { background:#8b5cf6; border-color:#8b5cf6; color:#fff; }' +
-            '.jfSeerrSeasonChip.disabled { opacity:.4; cursor:default; }' +
-            '.jfSeerrSeasonChip.all { font-weight:700; }' +
+            '.jfSeerrQuotaNote { font-size:.78em; opacity:.75; margin-bottom:.75em; }' +
+            '.jfSeerrQuotaNote.blocked { color:#f87171; opacity:1; }' +
+            '.jfSeerrSeasonList { display:flex; flex-direction:column; gap:.4em; margin-bottom:1em; max-height:230px; overflow-y:auto; }' +
+            '.jfSeerrSeasonRow { display:flex; align-items:center; justify-content:space-between; padding:.65em .9em; border-radius:6px; background:#242424; cursor:pointer; font-size:.85em; }' +
+            '.jfSeerrSeasonRow.active { background:#8b5cf6; }' +
+            '.jfSeerrSeasonRow.disabled { opacity:.45; cursor:default; }' +
+            '.jfSeerrSeasonRow .jfSeerrSeasonRight { font-size:.85em; opacity:.85; }' +
             '.jfSeerrModalActions { display:flex; gap:.6em; }' +
             '.jfSeerrModalActions button { flex:1; padding:.6em; border-radius:6px; border:none; font-size:.9em; cursor:pointer; }' +
             '.jfSeerrModalActions .jfSeerrPrimary { background:#8b5cf6; color:#fff; }' +
@@ -180,6 +186,14 @@
         var requestsRow = document.createElement('div');
         requestsRow.className = 'jfSeerrRequestsRow';
         requestsRow.style.display = 'none';
+        // Jellyfin's tab bar listens for horizontal swipes to switch tabs.
+        // Without this, swiping to scroll this row instead flips to the next
+        // tab. Stopping propagation here keeps the gesture local to the row,
+        // the same way native Jellyfin scrollers (Continue Watching, etc.)
+        // isolate their own touch handling.
+        ['touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointermove', 'pointerup'].forEach(function (evt) {
+            requestsRow.addEventListener(evt, function (e) { e.stopPropagation(); }, { passive: true });
+        });
         root.appendChild(requestsRow);
 
         var top = document.createElement('div');
@@ -479,10 +493,15 @@
                 body.appendChild(overviewEl);
             }
 
-            var seasonGrid = document.createElement('div');
-            seasonGrid.className = 'jfSeerrSeasonGrid';
-            seasonGrid.style.display = 'none';
-            body.appendChild(seasonGrid);
+            var quotaNoteEl = document.createElement('div');
+            quotaNoteEl.className = 'jfSeerrQuotaNote';
+            quotaNoteEl.style.display = 'none';
+            body.appendChild(quotaNoteEl);
+
+            var seasonList = document.createElement('div');
+            seasonList.className = 'jfSeerrSeasonList';
+            seasonList.style.display = 'none';
+            body.appendChild(seasonList);
 
             var statusEl = document.createElement('div');
             statusEl.className = 'jfSeerrModalStatus';
@@ -511,6 +530,8 @@
             document.body.appendChild(overlay);
 
             var mediaStatus = item.mediaInfo && item.mediaInfo.status;
+            var quotaBlocked = false;
+
             if (mediaStatus === 4 || mediaStatus === 5) {
                 primaryBtn.textContent = 'Available';
                 primaryBtn.disabled = true;
@@ -521,6 +542,38 @@
 
             var selectedSeasons = [];
 
+            // Quota check runs regardless of media type - Jellyseerr enforces
+            // separate movie and TV-season limits. If this fails or the shape
+            // is unexpected, we just skip showing it rather than block anyone
+            // incorrectly (Jellyseerr's own request endpoint still enforces
+            // the real limit either way).
+            if (!primaryBtn.disabled) {
+                fetch(API_BASE + 'quota')
+                    .then(function (r) { return r.json(); })
+                    .then(function (q) { applyQuota(q); })
+                    .catch(function (err) { console.error(err); });
+            }
+
+            function applyQuota(q) {
+                var section = item.mediaType === 'tv' ? (q && q.tv) : (q && q.movie);
+                if (!section || typeof section.limit !== 'number' || section.limit <= 0) return;
+                var remaining = typeof section.remaining === 'number' ? section.remaining : null;
+                var unit = item.mediaType === 'tv' ? 'season' : 'movie';
+                if (remaining !== null && remaining <= 0) {
+                    quotaBlocked = true;
+                    quotaNoteEl.className = 'jfSeerrQuotaNote blocked';
+                    quotaNoteEl.textContent = 'You\u2019ve reached your ' + unit + ' request limit' +
+                        (section.days ? ' (resets within ' + section.days + ' days)' : '') + '.';
+                    quotaNoteEl.style.display = '';
+                    primaryBtn.disabled = true;
+                } else if (remaining !== null) {
+                    quotaNoteEl.className = 'jfSeerrQuotaNote';
+                    quotaNoteEl.textContent = remaining + ' ' + unit + ' request' + (remaining === 1 ? '' : 's') +
+                        ' remaining' + (section.days ? ' (per ' + section.days + ' days)' : '') + '.';
+                    quotaNoteEl.style.display = '';
+                }
+            }
+
             if (item.mediaType === 'tv' && !primaryBtn.disabled) {
                 primaryBtn.disabled = true; // enabled once seasons load
                 statusEl.textContent = 'Loading seasons...';
@@ -529,7 +582,7 @@
                     .then(function (data) {
                         statusEl.textContent = '';
                         var seasons = (data.seasons || []).filter(function (s) { return s.seasonNumber !== 0; });
-                        buildSeasonChips(seasons);
+                        buildSeasonList(seasons);
                     })
                     .catch(function (err) {
                         console.error(err);
@@ -538,48 +591,67 @@
                     });
             }
 
-            function buildSeasonChips(seasons) {
-                seasonGrid.style.display = 'flex';
+            function buildSeasonList(seasons) {
+                seasonList.style.display = 'flex';
 
-                var allChip = document.createElement('div');
-                allChip.className = 'jfSeerrSeasonChip all';
-                allChip.textContent = 'All';
+                var allRow = document.createElement('div');
+                allRow.className = 'jfSeerrSeasonRow';
+                var allLabel = document.createElement('span');
+                allLabel.textContent = 'All Seasons';
+                var allRight = document.createElement('span');
+                allRight.className = 'jfSeerrSeasonRight';
+                allRow.appendChild(allLabel);
+                allRow.appendChild(allRight);
                 var allSelected = false;
 
-                var chips = [];
+                var rows = [];
                 seasons.forEach(function (s) {
                     var already = s.status === 4 || s.status === 5;
                     var pending = s.status === 2 || s.status === 3;
-                    var chip = document.createElement('div');
-                    chip.className = 'jfSeerrSeasonChip' + ((already || pending) ? ' disabled' : '');
-                    chip.textContent = 'S' + s.seasonNumber + (already ? ' \u2713' : pending ? ' \u2026' : '');
-                    chip.dataset.season = s.seasonNumber;
+                    var row = document.createElement('div');
+                    row.className = 'jfSeerrSeasonRow' + ((already || pending) ? ' disabled' : '');
+                    var label = document.createElement('span');
+                    label.textContent = 'Season ' + s.seasonNumber;
+                    var right = document.createElement('span');
+                    right.className = 'jfSeerrSeasonRight';
+                    right.textContent = already ? 'Available' : pending ? 'Requested' : '';
+                    row.appendChild(label);
+                    row.appendChild(right);
+                    row.dataset.season = s.seasonNumber;
                     if (!already && !pending) {
-                        chip.addEventListener('click', function () {
-                            chip.classList.toggle('active');
+                        row.addEventListener('click', function () {
+                            if (quotaBlocked) return;
+                            row.classList.toggle('active');
+                            right.textContent = row.classList.contains('active') ? '\u2713 Selected' : '';
                             syncSelection();
                         });
-                        chips.push(chip);
+                        rows.push(row);
                     }
-                    seasonGrid.appendChild(chip);
+                    seasonList.appendChild(row);
                 });
 
-                allChip.addEventListener('click', function () {
+                allRow.addEventListener('click', function () {
+                    if (quotaBlocked) return;
                     allSelected = !allSelected;
-                    chips.forEach(function (c) { c.classList.toggle('active', allSelected); });
+                    rows.forEach(function (r) {
+                        r.classList.toggle('active', allSelected);
+                        var rightEl = r.querySelector('.jfSeerrSeasonRight');
+                        if (rightEl) rightEl.textContent = allSelected ? '\u2713 Selected' : '';
+                    });
                     syncSelection();
                 });
-                seasonGrid.insertBefore(allChip, seasonGrid.firstChild);
+                seasonList.insertBefore(allRow, seasonList.firstChild);
 
                 function syncSelection() {
-                    selectedSeasons = chips
-                        .filter(function (c) { return c.classList.contains('active'); })
-                        .map(function (c) { return parseInt(c.dataset.season, 10); });
-                    primaryBtn.disabled = selectedSeasons.length === 0;
+                    selectedSeasons = rows
+                        .filter(function (r) { return r.classList.contains('active'); })
+                        .map(function (r) { return parseInt(r.dataset.season, 10); });
+                    primaryBtn.disabled = quotaBlocked || selectedSeasons.length === 0;
                 }
             }
 
             primaryBtn.addEventListener('click', function () {
+                if (quotaBlocked) return;
                 var payload = { mediaType: item.mediaType, mediaId: item.id };
                 if (item.mediaType === 'tv') {
                     if (!selectedSeasons.length) return;

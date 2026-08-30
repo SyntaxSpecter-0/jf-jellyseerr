@@ -82,6 +82,30 @@ jf.routes.get('/requests', function (req, res) {
     );
 });
 
+// Movie/TV request quota for whichever account owns the API key.
+// Two-step: find our own user id, then fetch that user's quota.
+jf.routes.get('/quota', function (req, res) {
+    var base = baseUrl();
+    if (!base) {
+        return res.status(500).json({ error: 'JELLYSEERR_URL is not configured' });
+    }
+    var meResp = jf.http.get(base + '/api/v1/auth/me', { headers: authHeaders(), timeout: 15000 });
+    if (!meResp.ok) {
+        jf.log.error('jellyseerr-requests: GET /auth/me -> ' + meResp.status);
+        return res.status(502).json({ error: 'Could not resolve Jellyseerr account' });
+    }
+    var me;
+    try {
+        me = JSON.parse(meResp.body);
+    } catch (e) {
+        return res.status(502).json({ error: 'Jellyseerr returned invalid JSON for /auth/me' });
+    }
+    if (!me || !me.id) {
+        return res.status(502).json({ error: 'Jellyseerr /auth/me had no user id' });
+    }
+    return proxyGet(res, '/api/v1/user/' + encodeURIComponent(me.id) + '/quota');
+});
+
 // Submit a request
 jf.routes.post('/request', function (req, res) {
     var body = req.body;
@@ -113,7 +137,12 @@ jf.routes.post('/request', function (req, res) {
 
     if (!resp.ok) {
         jf.log.error('jellyseerr-requests: POST /request -> ' + resp.status + ' ' + resp.body);
-        return res.status(resp.status || 502).json({ error: 'Request failed', detail: resp.body });
+        var message = 'Request failed';
+        try {
+            var parsedErr = JSON.parse(resp.body);
+            message = parsedErr.message || parsedErr.error || message;
+        } catch (e) { /* not JSON, keep generic message */ }
+        return res.status(resp.status || 502).json({ error: message });
     }
     try {
         return res.json(JSON.parse(resp.body));
