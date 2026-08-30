@@ -57,8 +57,6 @@
             '#' + CONTENT_ID + ' .jfSeerrReqCard:hover .cardImageContainer { box-shadow:0 6px 16px rgba(0,0,0,.5); }' +
             '#' + CONTENT_ID + ' .jfSeerrReqCard img.cardImage { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s ease; }' +
             '#' + CONTENT_ID + ' .jfSeerrReqCard:hover img.cardImage { transform:scale(1.05); }' +
-            '#' + CONTENT_ID + ' .jfSeerrReqTitle { font-size:.78em; font-weight:500; margin-top:.4em; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
-            '#' + CONTENT_ID + ' .jfSeerrReqMeta { font-size:.68em; opacity:.6; margin-top:.15em; }' +
             '#' + CONTENT_ID + ' .jfSeerrGrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:1em; }' +
             '@media (min-width:600px) { #' + CONTENT_ID + ' .jfSeerrGrid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:1.25em; } }' +
             '@media (min-width:1000px) { #' + CONTENT_ID + ' .jfSeerrGrid { grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:1.5em; } }' +
@@ -68,11 +66,26 @@
             '#' + CONTENT_ID + ' .jfSeerrCard:hover .cardImageContainer { box-shadow:0 6px 18px rgba(0,0,0,.55); }' +
             '#' + CONTENT_ID + ' .jfSeerrCard img.cardImage { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s ease; }' +
             '#' + CONTENT_ID + ' .jfSeerrCard:hover img.cardImage { transform:scale(1.045); }' +
-            '#' + CONTENT_ID + ' .jfSeerrCardText { font-size:.85em; font-weight:500; margin-top:.5em; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }' +
-            '#' + CONTENT_ID + ' .jfSeerrCardText.cardText-secondary { font-weight:400; opacity:.65; margin-top:.15em; font-size:.78em; }' +
-            '@media (min-width:1000px) { #' + CONTENT_ID + ' .jfSeerrCardText { font-size:.92em; } }' +
             '#' + CONTENT_ID + ' .jfSeerrEmpty { opacity:.6; padding:2.5em 0; text-align:center; grid-column:1/-1; }' +
             '#' + CONTENT_ID + ' .jfSeerrEmpty:hover { opacity:.85; }' +
+            // Shimmer placeholder while a poster loads, on either card type
+            '@keyframes jfSeerrShimmer { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard .cardImageContainer, #' + CONTENT_ID + ' .jfSeerrCard .cardImageContainer { background:linear-gradient(90deg, #1c1c1c 25%, #2a2a2a 37%, #1c1c1c 63%); background-size:400% 100%; animation:jfSeerrShimmer 1.4s ease infinite; }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard .cardImageContainer.jfSeerrImgLoaded, #' + CONTENT_ID + ' .jfSeerrCard .cardImageContainer.jfSeerrImgLoaded { animation:none; background:none; }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard img.cardImage, #' + CONTENT_ID + ' .jfSeerrCard img.cardImage { opacity:0; }' +
+            '#' + CONTENT_ID + ' .jfSeerrReqCard .cardImageContainer.jfSeerrImgLoaded img.cardImage, #' + CONTENT_ID + ' .jfSeerrCard .cardImageContainer.jfSeerrImgLoaded img.cardImage { opacity:1; transition:opacity .3s ease, transform .2s ease; }' +
+            // Cards fade/slide in as they render, staggered by a per-card delay set in JS
+            '@keyframes jfSeerrCardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }' +
+            '#' + CONTENT_ID + ' .jfSeerrCard, #' + CONTENT_ID + ' .jfSeerrReqCard { animation:jfSeerrCardIn .35s ease both; }' +
+            // Netflix-style gradient title overlay on the poster itself, instead
+            // of separate text sitting below the card
+            '.jfSeerrCardOverlay { position:absolute; left:0; right:0; bottom:0; padding:1.6em .55em .5em; background:linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.5) 55%, rgba(0,0,0,0) 100%); pointer-events:none; }' +
+            '.jfSeerrCardOverlayTitle { color:#fff; font-size:.85em; font-weight:600; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px rgba(0,0,0,.6); }' +
+            '.jfSeerrCardOverlayMeta { color:#ddd; font-size:.72em; opacity:.85; margin-top:.15em; }' +
+            '@media (min-width:1000px) { .jfSeerrCardOverlayTitle { font-size:.95em; } }' +
+            '.jfSeerrReqOverlay { padding:1.2em .45em .4em; }' +
+            '.jfSeerrReqOverlay .jfSeerrCardOverlayTitle { font-size:.75em; }' +
+            '.jfSeerrReqOverlay .jfSeerrCardOverlayMeta { font-size:.65em; }' +
             // Badges overlaid on posters (small fixed palette, same on any theme -
             // these mirror Jellyseerr's own status colors)
             '.jfSeerrBadge { position:absolute; top:.4em; left:.4em; padding:.2em .55em; border-radius:1em; font-size:.65em; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.03em; box-shadow:0 1px 4px rgba(0,0,0,.4); }' +
@@ -260,6 +273,14 @@
             return path ? 'https://image.tmdb.org/t/p/' + (size || 'w300') + path : '';
         }
 
+        // Fades a poster in and stops its shimmer placeholder once loaded
+        // (or once it fails, so a bad image doesn't shimmer forever).
+        function attachImageLoader(img, container) {
+            function done() { container.classList.add('jfSeerrImgLoaded'); }
+            img.addEventListener('load', done);
+            img.addEventListener('error', done);
+        }
+
         function timeAgo(dateStr) {
             if (!dateStr) return '';
             var diffMs = Date.now() - new Date(dateStr).getTime();
@@ -327,11 +348,12 @@
             reqSectionTitle.style.display = '';
             requestsRow.style.display = '';
 
-            items.forEach(function (entry) {
+            items.forEach(function (entry, idx) {
                 var status = requestStatusInfo(entry.reqItem);
 
                 var card = document.createElement('div');
                 card.className = 'jfSeerrReqCard';
+                card.style.animationDelay = (Math.min(idx, 14) * 35) + 'ms';
 
                 var imgWrap = document.createElement('div');
                 imgWrap.className = 'cardImageContainer';
@@ -341,23 +363,26 @@
                 img.loading = 'lazy';
                 img.src = posterUrl(entry.posterPath);
                 imgWrap.appendChild(img);
+                attachImageLoader(img, imgWrap);
 
                 var badge = document.createElement('div');
                 badge.className = 'jfSeerrBadge ' + status.cls;
                 badge.textContent = status.label;
                 imgWrap.appendChild(badge);
 
+                var overlay = document.createElement('div');
+                overlay.className = 'jfSeerrCardOverlay jfSeerrReqOverlay';
+                var overlayTitle = document.createElement('div');
+                overlayTitle.className = 'jfSeerrCardOverlayTitle';
+                overlayTitle.textContent = entry.title;
+                overlay.appendChild(overlayTitle);
+                var overlayMeta = document.createElement('div');
+                overlayMeta.className = 'jfSeerrCardOverlayMeta';
+                overlayMeta.textContent = timeAgo(entry.reqItem.createdAt);
+                overlay.appendChild(overlayMeta);
+                imgWrap.appendChild(overlay);
+
                 card.appendChild(imgWrap);
-
-                var titleEl = document.createElement('div');
-                titleEl.className = 'jfSeerrReqTitle';
-                titleEl.textContent = entry.title;
-                card.appendChild(titleEl);
-
-                var metaEl = document.createElement('div');
-                metaEl.className = 'jfSeerrReqMeta';
-                metaEl.textContent = timeAgo(entry.reqItem.createdAt);
-                card.appendChild(metaEl);
 
                 requestsRow.appendChild(card);
 
@@ -394,7 +419,7 @@
                 return;
             }
 
-            filtered.forEach(function (item) {
+            filtered.forEach(function (item, idx) {
                 var title = item.title || item.name || 'Untitled';
                 var date = (item.releaseDate || item.firstAirDate || '').slice(0, 4);
                 var status = item.mediaInfo && item.mediaInfo.status;
@@ -404,6 +429,7 @@
 
                 var card = document.createElement('div');
                 card.className = 'card jfSeerrCard';
+                card.style.animationDelay = (Math.min(idx, 14) * 35) + 'ms';
 
                 var imgWrap = document.createElement('div');
                 imgWrap.className = 'cardImageContainer coveredImage';
@@ -413,6 +439,7 @@
                 img.loading = 'lazy';
                 img.src = posterUrl(item.posterPath);
                 imgWrap.appendChild(img);
+                attachImageLoader(img, imgWrap);
 
                 if (isAvailable || isPartial || isPending) {
                     var badge = document.createElement('div');
@@ -430,17 +457,19 @@
                     imgWrap.appendChild(rating);
                 }
 
+                var overlay = document.createElement('div');
+                overlay.className = 'jfSeerrCardOverlay';
+                var overlayTitle = document.createElement('div');
+                overlayTitle.className = 'jfSeerrCardOverlayTitle';
+                overlayTitle.textContent = title;
+                overlay.appendChild(overlayTitle);
+                var overlayMeta = document.createElement('div');
+                overlayMeta.className = 'jfSeerrCardOverlayMeta';
+                overlayMeta.textContent = (item.mediaType === 'tv' ? 'TV' : 'Movie') + (date ? ' \u00b7 ' + date : '');
+                overlay.appendChild(overlayMeta);
+                imgWrap.appendChild(overlay);
+
                 card.appendChild(imgWrap);
-
-                var text = document.createElement('div');
-                text.className = 'cardText jfSeerrCardText';
-                text.textContent = title;
-                card.appendChild(text);
-
-                var meta = document.createElement('div');
-                meta.className = 'cardText cardText-secondary jfSeerrCardText';
-                meta.textContent = (item.mediaType === 'tv' ? 'TV' : 'Movie') + (date ? ' - ' + date : '');
-                card.appendChild(meta);
 
                 card.addEventListener('click', function () { openModal(item); });
 
