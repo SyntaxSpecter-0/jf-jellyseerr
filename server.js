@@ -66,6 +66,22 @@ jf.routes.get('/tv/:id', function (req, res) {
     return proxyGet(res, '/api/v1/tv/' + encodeURIComponent(id) + '?language=en');
 });
 
+// Movie detail, used to enrich the recent-requests list with title/poster
+jf.routes.get('/movie/:id', function (req, res) {
+    var id = req.pathParams['id'];
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    return proxyGet(res, '/api/v1/movie/' + encodeURIComponent(id) + '?language=en');
+});
+
+// Recent requests, so people can see what's pending/processing
+jf.routes.get('/requests', function (req, res) {
+    var take = req.query['take'] || '10';
+    return proxyGet(
+        res,
+        '/api/v1/request?take=' + encodeURIComponent(take) + '&skip=0&filter=all&sort=added'
+    );
+});
+
 // Submit a request
 jf.routes.post('/request', function (req, res) {
     var body = req.body;

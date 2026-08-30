@@ -2,16 +2,20 @@
 
 Adds a Requests tab to the Jellyfin home screen, backed by your Jellyseerr
 instance. It's a real Jellyfin tab, not an iframe, so it picks up your theme
-and works on mobile like any other tab.
+and works on mobile like any other tab. Requesting itself works like
+Jellyseerr's own UI - click a poster, a modal opens with the backdrop,
+overview, rating, and a Request button (season chips for TV). A Recent
+Requests row up top shows what's pending/processing so people can see it
+without checking Jellyseerr directly.
 
 ## Files
 
 - `server.js` - runs on the server. Holds your Jellyseerr URL and API key,
-  proxies search/discover/request calls to Jellyseerr. Key never reaches
-  the browser.
+  proxies search/discover/request/requests-list calls to Jellyseerr. Key
+  never reaches the browser.
 - `browser.js` - adds the tab button and content pane to the home screen,
-  builds the UI (search box, poster grid, request buttons, season picker
-  for TV).
+  builds the UI (search box, poster grid, recent requests row, request
+  modal).
 - `mods.json` - manifest that ties both together and defines the config
   fields you fill in when enabling the mod.
 
@@ -19,20 +23,28 @@ and works on mobile like any other tab.
 
 1. Push all three files to the root of your repo (main branch).
 2. Jellyfin: Dashboard > Mods > Marketplace, paste
-   `https://cdn.jsdelivr.net/gh/SyntaxSpecter-0/jf-jellyseerr@main/mods.json`,
+   `https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/main/mods.json`,
    click Load Mods, enable it.
 3. Fill in `JELLYSEERR_URL` and `JELLYSEERR_API_KEY` (from Jellyseerr's
    Settings > General).
 4. Save & Apply, hard refresh (Ctrl+Shift+R).
 
-If you push an update later and don't see it, that's jsDelivr's cache -
-either wait it out or bump the version in `mods.json`.
+Using raw.githubusercontent.com instead of jsDelivr on purpose - jsDelivr's
+purge can get throttled and leave you serving a stale file with no easy fix.
+Raw GitHub updates the moment you push, no cache to fight. If you switch
+back to jsDelivr later, remember to purge (or pin to a version tag) every
+time you push a change.
+
+If a mod update doesn't seem to take effect after a push, also check
+Dashboard > Mods > Settings > Mod Cache > Purge - that's JellyFrame's own
+cache, separate from wherever you're hosting the files.
 
 ## TV seasons
 
-Clicking Request on a show loads its season list and lets you check which
-ones to request. Already-available or already-requested seasons are greyed
-out. Movies just request straight away.
+Clicking a show opens the request modal, which loads its season list as a
+row of chips (S1, S2, ...) plus an "All" toggle. Already-available or
+already-requested seasons show as disabled. Movies just have a plain
+Request button in the modal.
 
 ## Not authenticated - read this
 
