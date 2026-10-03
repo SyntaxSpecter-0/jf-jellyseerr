@@ -1,0 +1,30 @@
+name: Merge manifest
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - mod-entry.json
+      - scripts/merge_manifest.py
+      - .github/workflows/merge-manifest.yml
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/merge_manifest.py
+      - name: Commit if changed
+        run: |
+          if git diff --quiet mods.json; then echo "no change"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mods.json
+          git commit -m "Update merged manifest"
+          git push
