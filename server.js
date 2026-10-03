@@ -208,6 +208,62 @@ function needSeerrUser(res, ctx) {
     return false;
 }
 
+// ---- Optional: "now available" notifications ----
+// Jellyseerr's webhook agent POSTs here when media becomes available; we find
+// who requested it and show them Jellyfin's own in-app message on each of their
+// open sessions. Off unless NOTIFY_ENABLED and WEBHOOK_SECRET are both set.
+// Only reaches users with an open Jellyfin session (needs jellyfin.write).
+
+function notifyEnabled() {
+    var v = String(jf.vars['NOTIFY_ENABLED'] || '').toLowerCase();
+    return (v === 'true' || v === '1') && !!jf.vars['WEBHOOK_SECRET'];
+}
+
+// Returns how many sessions were messaged
+function sendToast(jellyfinUserId, title, text) {
+    var sent = 0;
+    try {
+        var sessions = jf.jellyfin.getSessionsForUser(jellyfinUserId) || [];
+        for (var i = 0; i < sessions.length; i++) {
+            jf.jellyfin.sendMessageToSession(sessions[i].id, title, text, 8000);
+            sent++;
+        }
+    } catch (e) {
+        jf.log.warn('jellyseerr-requests: could not message sessions for ' + jellyfinUserId + ': ' + e);
+    }
+    return sent;
+}
+
+// Jellyseerr notification_type -> message. Extend here for approved/declined.
+var NOTIFY_TYPES = {
+    MEDIA_AVAILABLE: { text: 'is now available to watch.' }
+};
+
+jf.routes.post('/webhook/jellyseerr', function (req, res) {
+    if (!notifyEnabled()) return res.status(404).json({ error: 'Not found' });
+
+    var auth = headerValue(req, 'Authorization');
+    var secret = String(jf.vars['WEBHOOK_SECRET']);
+    if (auth !== secret && auth !== 'Bearer ' + secret) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    var body = req.body || {};
+    var rule = NOTIFY_TYPES[body.notification_type];
+    var requestId = body.request && body.request.request_id;
+    if (!rule || !isId(requestId)) return res.json({ ok: true, ignored: true });
+
+    // The webhook only carries Jellyseerr usernames; the request itself knows
+    // the requester's linked Jellyfin user id.
+    var r = seerrCall('GET', '/api/v1/request/' + requestId);
+    var jfUserId = r.ok && r.data && r.data.requestedBy && r.data.requestedBy.jellyfinUserId;
+    if (!jfUserId) return res.json({ ok: true, ignored: true, reason: 'requester has no Jellyfin user' });
+
+    var title = String(body.subject || 'Your request');
+    var sent = sendToast(jfUserId, 'Request available', title + ' ' + rule.text);
+    return res.json({ ok: true, notified: sent });
+});
+
 // ---- Routes ----
 
 // Who am I, and what can I do

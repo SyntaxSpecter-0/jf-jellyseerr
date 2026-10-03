@@ -72,3 +72,26 @@ key still never leaves the server.
 
 Cloudflare Access on that path is no longer required, though it's still a
 fine extra layer.
+
+## Optional: "now available" notifications
+
+Shows Jellyfin's own pop-up message to the requester when their request
+becomes available. No other mod is needed. It only reaches people with
+Jellyfin open at that moment; for real phone notifications use Jellyseerr's
+own notification agents (Telegram, ntfy, Discord, etc.). This feature is why
+the mod declares the `jellyfin.write` permission (needed to send session
+messages); it does nothing else with it.
+
+1. In this mod's settings, turn on **Notify when requests are available** and
+   set **Webhook Secret** to any long random string.
+2. In Jellyseerr > Settings > Notifications > Webhook:
+   - Webhook URL: `https://your-jellyfin/JellyFrame/mods/jellyseerr-requests/api/webhook/jellyseerr`
+   - Authorization Header: the same secret
+   - Notification Types: tick **Request Available** only
+   - Leave the JSON payload at its default (the mod reads `notification_type`,
+     `subject` and `request.request_id`)
+   - Enable the agent and use Test.
+3. Jellyseerr must be able to reach your Jellyfin URL.
+
+The webhook route returns 404 unless both settings are set, and 401 without
+the secret.

@@ -4,7 +4,7 @@
     "name": "Jellyseerr Requests",
     "author": "claymaver",
     "description": "Jellyseerr inside Jellyfin: a Home-screen tab with Discover, Movies/TV genre browsing, Upcoming, rich detail view (cast, trailer, play), per-user requests, approve/decline for managers, and issue reporting. API is gated by your Jellyfin login.",
-    "version": "4.0.2",
+    "version": "4.2.0",
     "jellyfin": "10.10+",
     "tags": [
       "requests",
@@ -14,7 +14,8 @@
     "jsUrl": "https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/main/browser.js",
     "serverJs": "https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/main/server.js",
     "permissions": [
-      "http"
+      "http",
+      "jellyfin.write"
     ],
     "requires": [],
     "vars": [
@@ -38,6 +39,20 @@
         "description": "Address this server can reach Jellyfin at, used to verify visitors' login tokens. Usually http://localhost:8096",
         "type": "text",
         "default": "http://localhost:8096"
+      },
+      {
+        "key": "NOTIFY_ENABLED",
+        "name": "Notify when requests are available (optional)",
+        "description": "Shows a Jellyfin pop-up message to the requester (on any open session) when Jellyseerr reports their request is available. Needs the Jellyseerr webhook set up (see README). Only reaches people with Jellyfin open.",
+        "type": "boolean",
+        "default": "false"
+      },
+      {
+        "key": "WEBHOOK_SECRET",
+        "name": "Webhook Secret (optional)",
+        "description": "Only used for notifications. Put the same value in Jellyseerr's webhook 'Authorization Header' field. Leave blank to disable.",
+        "type": "text",
+        "default": ""
       }
     ]
   },
