@@ -39,33 +39,36 @@ If a mod update doesn't seem to take effect after a push, also check
 Dashboard > Mods > Settings > Mod Cache > Purge - that's JellyFrame's own
 cache, separate from wherever you're hosting the files.
 
-## TV seasons
+## Features
 
-Clicking a show opens the request modal, which loads its season list as a
-row of chips (S1, S2, ...) plus an "All" toggle. Already-available or
-already-requested seasons show as disabled. Movies just have a plain
-Request button in the modal.
+- Discover (trending), Movies and TV Shows with genre chips, Upcoming, search,
+  all with "Load more" pagination
+- Detail modal: genres, runtime, cast, trailer, "Play in Jellyfin" for titles
+  already in your library, season picker for TV, quota display
+- Requests page: your own request history with status, cancel for pending
+  ones. Users with Jellyseerr's Manage Requests/Admin permission (or Jellyfin
+  admins) also get an "Everyone" view with filters and Approve/Decline
+- Report an issue (video/audio/subtitles/other) on available titles; the
+  reporter's Jellyfin name is added to the message
 
-## Not authenticated - read this
+## Authentication
 
-The mod's API routes aren't behind Jellyfin's login. Anyone who finds the
-URL (`/JellyFrame/mods/jellyseerr-requests/api/*`) can hit it directly and
-fire off requests using your API key, no Jellyfin account needed. Cloudflare
-proxying alone doesn't stop this - it just relays traffic, it doesn't add
-auth to a specific path on its own.
+Every API route requires a valid Jellyfin login. The browser sends its
+Jellyfin access token and `server.js` verifies it against Jellyfin's
+`/Users/Me` (using `JELLYFIN_URL`) before doing anything; no token or a bad
+one gets a 401. Test it: open
+`https://your-domain/JellyFrame/mods/jellyseerr-requests/api/discover` in a
+private window - you should get `{"error":"Sign in to Jellyfin to use Requests"}`.
 
-Check if you're exposed: log out of Jellyfin (or use incognito) and open
-`https://your-domain/JellyFrame/mods/jellyseerr-requests/api/discover`. If
-you get JSON back instead of a login prompt, it's open.
+Requests are made as the viewer's own Jellyseerr account, matched through
+Jellyseerr's linked Jellyfin user ID (falling back to username). Quotas and
+"my requests" follow that user. Users who haven't been imported into
+Jellyseerr can browse but not request - import them under Jellyseerr >
+Users > Import Jellyfin Users.
 
-Fix it with Cloudflare Access:
-1. Zero Trust dashboard > Access > Applications > Add an application > Self-hosted.
-2. Domain = your Jellyfin host, path = `/JellyFrame/mods/jellyseerr-requests*`
-   (just that path, not the whole domain - otherwise you lock out normal
-   Jellyfin logins and other apps/clients).
-3. Add a policy (email OTP or your usual identity provider).
-4. Save. That path now needs a Cloudflare login before it even reaches
-   Jellyfin.
+`JELLYFIN_URL` is the address the Jellyfin server can reach itself at
+(default `http://localhost:8096`), not the public URL. The Jellyseerr API
+key still never leaves the server.
 
-A hardcoded secret in `server.js` isn't a real fix here since anyone can
-read it straight out of `browser.js`'s source.
+Cloudflare Access on that path is no longer required, though it's still a
+fine extra layer.

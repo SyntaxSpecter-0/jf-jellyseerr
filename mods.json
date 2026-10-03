@@ -3,13 +3,19 @@
     "id": "jellyseerr-requests",
     "name": "Jellyseerr Requests",
     "author": "claymaver",
-    "description": "Adds a real Home-screen tab backed by your Jellyseerr instance - search, browse trending, see recent requests, and submit requests (with per-season picking) via a Jellyseerr-style request modal, without leaving Jellyfin.",
-    "version": "3.4.0",
+    "description": "Jellyseerr inside Jellyfin: a Home-screen tab with Discover, Movies/TV genre browsing, Upcoming, rich detail view (cast, trailer, play), per-user requests, approve/decline for managers, and issue reporting. API is gated by your Jellyfin login.",
+    "version": "4.0.0",
     "jellyfin": "10.10+",
-    "tags": ["requests", "jellyseerr", "server"],
+    "tags": [
+      "requests",
+      "jellyseerr",
+      "server"
+    ],
     "jsUrl": "https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/main/browser.js",
     "serverJs": "https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/main/server.js",
-    "permissions": ["http"],
+    "permissions": [
+      "http"
+    ],
     "requires": [],
     "vars": [
       {
@@ -25,6 +31,13 @@
         "description": "Found in Jellyseerr under Settings -> General -> API Key. Stays server-side, never sent to the browser.",
         "type": "text",
         "default": ""
+      },
+      {
+        "key": "JELLYFIN_URL",
+        "name": "Jellyfin URL (internal)",
+        "description": "Address this server can reach Jellyfin at, used to verify visitors' login tokens. Usually http://localhost:8096",
+        "type": "text",
+        "default": "http://localhost:8096"
       }
     ]
   }
