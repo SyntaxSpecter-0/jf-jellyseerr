@@ -681,7 +681,7 @@
                 if (scope === 'all') {
                     var filterPills = el('div', 'jfSeerrPills small');
                     isolateSwipes(filterPills);
-                    ['all', 'pending', 'approved', 'processing', 'available', 'declined'].forEach(function (f) {
+                    ['all', 'pending', 'approved', 'processing', 'available', 'failed', 'declined'].forEach(function (f) {
                         var p = el('button', 'jfSeerrPill' + (filter === f ? ' active' : ''), f.charAt(0).toUpperCase() + f.slice(1));
                         p.type = 'button';
                         p.addEventListener('click', function () { filter = f; drawControls(); reload(); });
@@ -704,15 +704,21 @@
 
             function loadMore() {
                 moreBtn.disabled = true;
-                var q = 'requests?scope=' + scope + '&filter=' + filter + '&take=' + PAGE + '&skip=' + skip;
+                var serverFilter = filter === 'declined' ? 'all' : filter;
+                var q = 'requests?scope=' + scope + '&filter=' + serverFilter + '&take=' + PAGE + '&skip=' + skip;
                 api(q).then(function (data) {
                     if (!list.isConnected) return;
                     var results = data.results || [];
                     if (!results.length && skip === 0) { note('No requests yet.'); return; }
-                    results.forEach(function (r, i) { list.appendChild(buildRequestRow(r, i)); });
                     skip += results.length;
+                    // Declined has no server-side filter, so narrow it here
+                    var shown = filter === 'declined' ? results.filter(function (r) { return r.status === 3; }) : results;
+                    shown.forEach(function (r, i) { list.appendChild(buildRequestRow(r, i)); });
                     var total = data.pageInfo && data.pageInfo.results;
-                    moreBtn.style.display = results.length === PAGE && (!total || skip < total) ? '' : 'none';
+                    var more = results.length === PAGE && (!total || skip < total);
+                    if (!shown.length && more) { loadMore(); return; }
+                    if (!shown.length && !list.children.length) note('No requests found.');
+                    moreBtn.style.display = more ? '' : 'none';
                     moreBtn.disabled = false;
                 }).catch(function (err) {
                     console.error(err);

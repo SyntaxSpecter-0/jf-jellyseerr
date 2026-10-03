@@ -4,7 +4,7 @@
     "name": "Jellyseerr Requests",
     "author": "claymaver",
     "description": "Jellyseerr inside Jellyfin: a Home-screen tab with Discover, Movies/TV genre browsing, Upcoming, rich detail view (cast, trailer, play), per-user requests, approve/decline for managers, and issue reporting. API is gated by your Jellyfin login.",
-    "version": "4.0.0",
+    "version": "4.0.1",
     "jellyfin": "10.10+",
     "tags": [
       "requests",

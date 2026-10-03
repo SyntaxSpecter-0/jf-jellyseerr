@@ -276,7 +276,8 @@ jf.routes.get('/requests', guarded(function (req, res, ctx) {
     var take = isId(req.query['take']) ? Math.min(parseInt(req.query['take'], 10), 50) : 10;
     var skip = isId(req.query['skip']) ? req.query['skip'] : '0';
     var scope = req.query['scope'] === 'all' ? 'all' : 'mine';
-    var filters = { all: 1, pending: 1, approved: 1, available: 1, processing: 1, declined: 1 };
+    // Jellyseerr has no 'declined' filter; the client filters those out of 'all'
+    var filters = { all: 1, pending: 1, approved: 1, available: 1, processing: 1, completed: 1, failed: 1 };
     var filter = filters[req.query['filter']] ? req.query['filter'] : 'all';
 
     if (scope === 'all') {
