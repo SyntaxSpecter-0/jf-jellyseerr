@@ -23,7 +23,7 @@ without checking Jellyseerr directly.
 
 1. Push all three files to the root of your repo (main branch).
 2. Jellyfin: Dashboard > Mods > Marketplace, paste
-   `https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/main/mods.json`,
+   `https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/refs/heads/main/mods.json`,
    click Load Mods, enable it.
 3. Fill in `JELLYSEERR_URL` and `JELLYSEERR_API_KEY` (from Jellyseerr's
    Settings > General).
