@@ -366,16 +366,22 @@ jf.routes.post('/request', guarded(function (req, res, ctx) {
         userId: ctx.seerrUser.id
     };
     if (body.mediaType === 'tv') {
+        // req.body arrays can arrive as .NET-backed objects in Jint, where
+        // Array.isArray() is false - so read them by length instead and
+        // rebuild a plain array.
         var seasons = body.seasons;
-        if (!seasons || (Array.isArray(seasons) && seasons.length === 0)) {
-            return res.status(400).json({ error: 'seasons is required for tv requests' });
-        }
-        if (Array.isArray(seasons)) {
+        if (seasons === 'all') {
+            // pass through
+        } else if (seasons && typeof seasons === 'object' && typeof seasons.length === 'number') {
+            var clean = [];
             for (var i = 0; i < seasons.length; i++) {
                 if (!isId(seasons[i])) return res.status(400).json({ error: 'invalid season' });
+                clean.push(parseInt(seasons[i], 10));
             }
-        } else if (seasons !== 'all') {
-            return res.status(400).json({ error: 'invalid seasons' });
+            if (!clean.length) return res.status(400).json({ error: 'seasons is required for tv requests' });
+            seasons = clean;
+        } else {
+            return res.status(400).json({ error: 'seasons is required for tv requests' });
         }
         payload.seasons = seasons;
     }

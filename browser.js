@@ -996,17 +996,22 @@
                     actions.insertBefore(issueBtn, cancelBtn);
                 }
 
-                if (mediaStatus === 5) {
+                // For TV the overall status says nothing about what's still
+                // requestable (one requested season already makes the show
+                // "processing"), so only the per-season rows decide.
+                if (isTv) {
+                    var anyLeft = buildSeasonList(d);
+                    primaryBtn.disabled = true; // until a season is picked
+                    if (!anyLeft) primaryBtn.textContent = mediaStatus === 5 ? 'Available' : 'Already Requested';
+                    else loadQuota();
+                } else if (mediaStatus === 5) {
                     primaryBtn.textContent = 'Available';
                 } else if (mediaStatus === 2 || mediaStatus === 3) {
                     primaryBtn.textContent = 'Already Requested';
                 } else {
                     primaryBtn.disabled = false;
+                    loadQuota();
                 }
-
-                if (isTv) buildSeasonList(d);
-                if (mediaStatus !== 5 && mediaStatus !== 2 && mediaStatus !== 3) loadQuota();
-                if (isTv) primaryBtn.disabled = true; // until a season is picked
             }).catch(function (err) {
                 console.error(err);
                 setStatus(err.message || 'Could not load details.', 'error');
@@ -1158,8 +1163,6 @@
             function buildSeasonList(d) {
                 var statusMap = seasonStatusMap(d);
                 var seasons = (d.seasons || []).filter(function (s) { return s.seasonNumber !== 0; });
-                var whole = d.mediaInfo && d.mediaInfo.status;
-                var locked = whole === 5 || whole === 2 || whole === 3; // whole show already handled
                 seasonList.style.display = 'flex';
 
                 var allRow = el('div', 'jfSeerrSeasonRow');
@@ -1179,7 +1182,7 @@
                     row.dataset.season = s.seasonNumber;
                     if (!already && !pending) {
                         row.addEventListener('click', function () {
-                            if (quotaBlocked || locked) return;
+                            if (quotaBlocked) return;
                             row.classList.toggle('active');
                             right.textContent = row.classList.contains('active') ? '✓ Selected' : '';
                             syncSelection();
@@ -1191,7 +1194,7 @@
 
                 if (!rows.length) allRow.classList.add('disabled');
                 allRow.addEventListener('click', function () {
-                    if (quotaBlocked || locked || !rows.length) return;
+                    if (quotaBlocked || !rows.length) return;
                     allSelected = !allSelected;
                     rows.forEach(function (r) {
                         r.classList.toggle('active', allSelected);
@@ -1206,8 +1209,9 @@
                     selectedSeasons = rows
                         .filter(function (r) { return r.classList.contains('active'); })
                         .map(function (r) { return parseInt(r.dataset.season, 10); });
-                    primaryBtn.disabled = quotaBlocked || locked || selectedSeasons.length === 0;
+                    primaryBtn.disabled = quotaBlocked || selectedSeasons.length === 0;
                 }
+                return rows.length > 0; // anything still requestable?
             }
 
             primaryBtn.addEventListener('click', function () {
