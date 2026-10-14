@@ -272,7 +272,8 @@ jf.routes.get('/me', guarded(function (req, res, ctx) {
         name: ctx.user.name,
         isAdmin: ctx.user.isAdmin,
         canManage: ctx.canManage,
-        hasSeerrAccount: !!ctx.seerrUser
+        hasSeerrAccount: !!ctx.seerrUser,
+        seerrUserId: ctx.seerrUser ? ctx.seerrUser.id : null
     });
 }));
 
@@ -285,26 +286,49 @@ jf.routes.get('/search', guarded(function (req, res) {
         '/api/v1/search?query=' + encodeURIComponent(q) + '&page=' + page + '&language=en'));
 }));
 
-// Browse feeds: trending, popular movies/tv, upcoming, or by genre
+// Browse feeds: trending, upcoming, or movies/tv with optional genre, sort,
+// minimum rating and studio (movies) / network (tv) filters
+var SORTS = {
+    movies: { 'popularity.desc': 1, 'primary_release_date.desc': 1, 'vote_average.desc': 1, 'revenue.desc': 1 },
+    tv: { 'popularity.desc': 1, 'first_air_date.desc': 1, 'vote_average.desc': 1 }
+};
+
 jf.routes.get('/discover', guarded(function (req, res) {
     var kind = req.query['kind'] || 'trending';
     var page = isId(req.query['page']) ? req.query['page'] : '1';
-    var genreId = req.query['genreId'];
+    var qs = ['page=' + page, 'language=en'];
     var path;
     switch (kind) {
         case 'trending': path = '/api/v1/discover/trending'; break;
-        case 'movies': path = '/api/v1/discover/movies'; break;
-        case 'tv': path = '/api/v1/discover/tv'; break;
         case 'upcoming_movies': path = '/api/v1/discover/movies/upcoming'; break;
         case 'upcoming_tv': path = '/api/v1/discover/tv/upcoming'; break;
-        case 'genre_movies':
-        case 'genre_tv':
-            if (!isId(genreId)) return res.status(400).json({ error: 'genreId is required' });
-            path = '/api/v1/discover/' + (kind === 'genre_movies' ? 'movies' : 'tv') + '/genre/' + genreId;
+        case 'movies':
+        case 'tv':
+            path = '/api/v1/discover/' + kind;
+            var q = req.query;
+            if (q['genreId']) {
+                if (!isId(q['genreId'])) return res.status(400).json({ error: 'invalid genreId' });
+                qs.push('genre=' + q['genreId']);
+            }
+            if (q['sortBy']) {
+                if (!SORTS[kind][q['sortBy']]) return res.status(400).json({ error: 'invalid sortBy' });
+                qs.push('sortBy=' + encodeURIComponent(q['sortBy']));
+            }
+            if (q['minRating']) {
+                if (!isId(q['minRating']) || parseInt(q['minRating'], 10) > 10) {
+                    return res.status(400).json({ error: 'invalid minRating' });
+                }
+                qs.push('voteAverageGte=' + q['minRating']);
+            }
+            var owner = kind === 'movies' ? 'studioId' : 'networkId';
+            if (q[owner]) {
+                if (!isId(q[owner])) return res.status(400).json({ error: 'invalid ' + owner });
+                qs.push((kind === 'movies' ? 'studio=' : 'network=') + q[owner]);
+            }
             break;
         default: return res.status(400).json({ error: 'unknown kind' });
     }
-    return send(res, seerrCall('GET', path + '?page=' + page + '&language=en'));
+    return send(res, seerrCall('GET', path + '?' + qs.join('&')));
 }));
 
 // Genre lists for the filter chips

@@ -28,6 +28,24 @@
     var CONTENT_ID = 'jfSeerrContent';
     var TAB_LABEL = 'Requests';
     var STYLE_ID = 'jfSeerrStyle';
+    var PREFS_KEY = 'jfSeerrPrefs';
+
+    // Curated TMDB company / network ids for the Studio and Network filters.
+    var STUDIOS = [
+        [2, 'Disney'], [3, 'Pixar'], [420, 'Marvel Studios'], [174, 'Warner Bros.'], [33, 'Universal'],
+        [4, 'Paramount'], [5, 'Columbia'], [25, '20th Century'], [1632, 'Lionsgate'], [21, 'MGM'],
+        [521, 'DreamWorks'], [41077, 'A24'], [10342, 'Studio Ghibli']
+    ];
+    var NETWORKS = [
+        [213, 'Netflix'], [49, 'HBO'], [2739, 'Disney+'], [2552, 'Apple TV+'], [1024, 'Prime Video'],
+        [453, 'Hulu'], [4330, 'Paramount+'], [3353, 'Peacock'], [4, 'BBC One']
+    ];
+    var SORT_OPTIONS = {
+        movie: [['popularity.desc', 'Most popular'], ['primary_release_date.desc', 'Newest'], ['vote_average.desc', 'Top rated'], ['revenue.desc', 'Highest grossing']],
+        tv: [['popularity.desc', 'Most popular'], ['first_air_date.desc', 'Newest'], ['vote_average.desc', 'Top rated']]
+    };
+    var RATING_OPTIONS = [['', 'Any rating'], ['6', '6+'], ['7', '7+'], ['8', '8+']];
+    var VIEW_IDS = ['discover', 'movies', 'tv', 'upcoming', 'requests'];
 
     function isHomePage() {
         // Newer Jellyfin uses #/home, older versions used #/home.html - match both.
@@ -79,6 +97,9 @@
             C + ' .jfSeerrCard:hover img.cardImage { transform:scale(1.045); }' +
             C + ' .jfSeerrEmpty { opacity:.6; padding:2.5em 0; text-align:center; grid-column:1/-1; }' +
             C + ' .jfSeerrEmpty:hover { opacity:.85; }' +
+            C + ' .jfSeerrControls { display:flex; flex-wrap:wrap; gap:.5em; margin-bottom:1em; align-items:center; }' +
+            C + ' .jfSeerrSelect { padding:.4em .6em; border-radius:6px; border:1px solid rgba(128,128,128,.4); background:rgba(128,128,128,.15); color:inherit; font-size:.85em; max-width:100%; }' +
+            C + ' .jfSeerrSelect option { background:#222; color:#eee; }' +
             C + ' .jfSeerrMore { display:block; margin:1.5em auto 2em; padding:.7em 2em; border:none; border-radius:2em; background:rgba(128,128,128,.25); color:inherit; font-weight:600; cursor:pointer; }' +
             C + ' .jfSeerrMore:hover { background:rgba(128,128,128,.4); }' +
             C + ' .jfSeerrMore:disabled { opacity:.5; cursor:default; }' +
@@ -164,6 +185,13 @@
             '.jfSeerrIssueForm { display:flex; flex-direction:column; gap:.6em; margin-bottom:1em; }' +
             '.jfSeerrIssueForm select, .jfSeerrIssueForm textarea { background:#242424; color:#f2f2f2; border:1px solid #3a3a3a; border-radius:7px; padding:.6em; font:inherit; font-size:.85em; }' +
             '.jfSeerrIssueForm textarea { min-height:5em; resize:vertical; }' +
+            '@media (max-width:600px) { .jfSeerrOverlay { padding:0; align-items:stretch; } .jfSeerrModal { max-width:none; max-height:none; height:100%; border-radius:0; } .jfSeerrModalClose { top:calc(.6em + env(safe-area-inset-top, 0px)); } .jfSeerrModalBody { padding-bottom:calc(1.35em + env(safe-area-inset-bottom, 0px)); } }' +
+            '.jfSeerrManageRow { display:flex; align-items:center; justify-content:space-between; gap:.6em; padding:.55em .8em; border-radius:7px; background:#242424; margin-bottom:.4em; font-size:.8em; }' +
+            '.jfSeerrManageBtns { display:flex; gap:.4em; flex:0 0 auto; }' +
+            '.jfSeerrManageBtns button { border:none; border-radius:5px; padding:.35em .8em; font-size:.95em; font-weight:600; color:#fff; background:#555; cursor:pointer; }' +
+            '.jfSeerrManageBtns button.approve { background:#22c55e; }' +
+            '.jfSeerrManageBtns button.decline { background:#ef4444; }' +
+            '.jfSeerrManageBtns button:disabled { opacity:.5; cursor:default; }' +
             '.jfSeerrModalStatus { font-size:.82em; margin-top:.75em; min-height:1.2em; }' +
             '.jfSeerrModalStatus.error { color:#f87171; }' +
             '.jfSeerrModalStatus.success { color:#4ade80; }';
@@ -221,7 +249,9 @@
 
     function closeAnyModal() {
         var overlay = document.querySelector('.jfSeerrOverlay');
-        if (overlay && overlay.parentElement) overlay.parentElement.removeChild(overlay);
+        if (!overlay) return;
+        if (overlay.__jfClose) overlay.__jfClose();
+        else if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
     }
 
     function cleanupIfNotHome() {
@@ -356,7 +386,14 @@
         root.innerHTML = '';
 
         var me = { canManage: false, hasSeerrAccount: true };
-        var view = 'discover';
+        // Last view and browse filters survive reloads (per browser)
+        var prefs = {};
+        try { prefs = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {}; } catch (e) { prefs = {}; }
+        if (!prefs.browse) prefs.browse = {};
+        function savePrefs() {
+            try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode etc. */ }
+        }
+        var view = VIEW_IDS.indexOf(prefs.view) !== -1 ? prefs.view : 'discover';
         var searchQuery = null; // null = browsing, string = active search
         var debounceTimer = null;
 
@@ -409,6 +446,8 @@
                     clearBtn.style.display = 'none';
                     searchQuery = null;
                     view = v.id;
+                    prefs.view = v.id;
+                    savePrefs();
                     renderView();
                 });
                 nav.appendChild(pill);
@@ -517,38 +556,65 @@
 
         // ---- Views ----
 
-        function discoverFeed(kind, genreId) {
+        // opts (movies/tv only): genre, sort, rating, studio (movies) / network (tv)
+        function discoverFeed(kind, opts) {
             return createFeed(function (page) {
                 var q = 'discover?kind=' + kind + '&page=' + page;
-                if (genreId) q += '&genreId=' + genreId;
+                if (opts) {
+                    if (opts.genre) q += '&genreId=' + opts.genre;
+                    if (opts.sort) q += '&sortBy=' + encodeURIComponent(opts.sort);
+                    if (opts.rating) q += '&minRating=' + opts.rating;
+                    if (opts.owner) q += '&' + (kind === 'tv' ? 'networkId=' : 'studioId=') + opts.owner;
+                }
                 return api(q);
             });
         }
 
-        // Genre chips + feed, used by the Movies and TV views
+        function makeSelect(options, value, onChange) {
+            var sel = el('select', 'jfSeerrSelect');
+            options.forEach(function (o) {
+                var opt = el('option', null, o[1]);
+                opt.value = o[0];
+                if (String(o[0]) === String(value)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.addEventListener('change', function () { onChange(sel.value); });
+            return sel;
+        }
+
+        // Genre chips + sort/rating/studio filters + feed, for the Movies and TV views
         function renderGenreBrowse(mediaType) {
+            var isTv = mediaType === 'tv';
+            var kind = isTv ? 'tv' : 'movies';
+            var f = prefs.browse[mediaType] || (prefs.browse[mediaType] = {});
+            var defaultSort = 'popularity.desc';
+            var ownerList = isTv ? NETWORKS : STUDIOS;
+
             var pills = el('div', 'jfSeerrPills small');
             isolateSwipes(pills);
+            var controls = el('div', 'jfSeerrControls');
             var feedHost = el('div');
             body.appendChild(pills);
+            body.appendChild(controls);
             body.appendChild(feedHost);
 
             var genres = [];
-            var selected = null;
 
             function showFeed() {
                 feedHost.innerHTML = '';
-                var kind = selected ? 'genre_' + (mediaType === 'tv' ? 'tv' : 'movies') : (mediaType === 'tv' ? 'tv' : 'movies');
-                feedHost.appendChild(discoverFeed(kind, selected));
+                feedHost.appendChild(discoverFeed(kind, {
+                    genre: f.genre, sort: f.sort || defaultSort, rating: f.rating, owner: f.owner
+                }));
+                savePrefs();
             }
 
             function drawPills() {
                 pills.innerHTML = '';
                 [{ id: null, name: 'All' }].concat(genres).forEach(function (g) {
-                    var pill = el('button', 'jfSeerrPill' + (selected === g.id ? ' active' : ''), g.name);
+                    var pill = el('button', 'jfSeerrPill' + ((f.genre || null) === g.id ? ' active' : ''), g.name);
                     pill.type = 'button';
                     pill.addEventListener('click', function () {
-                        selected = g.id;
+                        f.genre = g.id;
                         drawPills();
                         showFeed();
                     });
@@ -556,7 +622,30 @@
                 });
             }
 
+            function drawControls() {
+                controls.innerHTML = '';
+                controls.appendChild(makeSelect(SORT_OPTIONS[mediaType], f.sort || defaultSort, function (v) {
+                    f.sort = v; showFeed(); drawControls();
+                }));
+                controls.appendChild(makeSelect(RATING_OPTIONS, f.rating || '', function (v) {
+                    f.rating = v; showFeed(); drawControls();
+                }));
+                controls.appendChild(makeSelect([['', isTv ? 'Any network' : 'Any studio']].concat(ownerList), f.owner || '', function (v) {
+                    f.owner = v; showFeed(); drawControls();
+                }));
+                if (f.genre || f.rating || f.owner || (f.sort && f.sort !== defaultSort)) {
+                    var reset = el('button', 'jfSeerrPill', 'Reset');
+                    reset.type = 'button';
+                    reset.addEventListener('click', function () {
+                        f.genre = null; f.rating = ''; f.owner = ''; f.sort = defaultSort;
+                        drawPills(); drawControls(); showFeed();
+                    });
+                    controls.appendChild(reset);
+                }
+            }
+
             drawPills();
+            drawControls();
             showFeed();
             api('genres?type=' + mediaType).then(function (list) {
                 if (!pills.isConnected) return;
@@ -774,10 +863,11 @@
                 }
 
                 var btns = el('div', 'jfSeerrReqBtns');
-                function action(label, cls, path, onDone) {
+                function action(label, cls, path, onDone, confirmText) {
                     var b = el('button', cls, label);
                     b.type = 'button';
                     b.addEventListener('click', function () {
+                        if (confirmText && !window.confirm(confirmText)) return;
                         btns.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
                         api('request/' + r.id + '/' + path, { method: 'POST' }).then(function () {
                             onDone();
@@ -802,6 +892,10 @@
                     });
                 } else if (r.status === 1 && scope === 'mine') {
                     action('Cancel', 'cancel', 'cancel', function () { row.remove(); });
+                }
+                // Managers can also remove approved/declined/processed requests
+                if (me.canManage && r.status !== 1) {
+                    action('Remove', 'decline', 'cancel', function () { row.remove(); }, 'Remove this request?');
                 }
                 if (btns.children.length) row.appendChild(btns);
                 return row;
@@ -879,10 +973,33 @@
             }
             document.addEventListener('keydown', onKeydown);
 
-            function closeModal() {
-                document.removeEventListener('keydown', onKeydown);
-                if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
+            // Phone back button / gesture closes the modal instead of leaving
+            // the page: push a throwaway history entry while it's open.
+            var pushed = false;
+            try { history.pushState({ jfSeerrModal: true }, '', location.href); pushed = true; } catch (e) { /* ignore */ }
+            function onPop() {
+                pushed = false; // the entry is already gone
+                closeModal(true);
             }
+            window.addEventListener('popstate', onPop);
+
+            var closed = false;
+            var dirty = false; // a manage action changed something; refresh the view on close
+            // skipBack = true when we're closing because of navigation (so we
+            // must not call history.back() on top of it)
+            function closeModal(skipBack) {
+                if (closed) return;
+                closed = true;
+                document.removeEventListener('keydown', onKeydown);
+                window.removeEventListener('popstate', onPop);
+                if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
+                if (pushed) {
+                    pushed = false;
+                    if (skipBack !== true) { try { history.back(); } catch (e) { /* ignore */ } }
+                }
+                if (dirty) { dirty = false; renderView(); }
+            }
+            overlay.__jfClose = function () { closeModal(true); };
 
             var isTv = item.mediaType === 'tv';
             var modal = el('div', 'jfSeerrModal');
@@ -933,6 +1050,9 @@
             var issueHost = el('div');
             mbody.appendChild(issueHost);
 
+            var manageHost = el('div');
+            mbody.appendChild(manageHost);
+
             var actions = el('div', 'jfSeerrModalActions');
             var primaryBtn = el('button', 'jfSeerrPrimary', 'Request');
             primaryBtn.type = 'button';
@@ -967,6 +1087,7 @@
                 drawMeta(d);
                 drawExtras(d);
                 drawCast(d);
+                drawManage(d);
                 var mediaInfo = d.mediaInfo || {};
                 var mediaStatus = mediaInfo.status;
 
@@ -975,7 +1096,7 @@
                     var playBtn = el('button', 'jfSeerrPlay', '▶ Play in Jellyfin');
                     playBtn.type = 'button';
                     playBtn.addEventListener('click', function () {
-                        closeModal();
+                        closeModal(true);
                         location.hash = '#/details?id=' + encodeURIComponent(mediaInfo.jellyfinMediaId);
                     });
                     actions.insertBefore(playBtn, primaryBtn);
@@ -1052,6 +1173,63 @@
                     row.appendChild(item);
                 });
                 castHost.appendChild(row);
+            }
+
+            // ---- Manage requests for this title ----
+
+            // Managers see every request on the title (approve/decline/remove);
+            // everyone else sees their own, with Cancel while still pending.
+            function drawManage(d) {
+                manageHost.innerHTML = '';
+                var reqs = ((d.mediaInfo && d.mediaInfo.requests) || []).filter(function (r) {
+                    return me.canManage || (r.requestedBy && me.seerrUserId && r.requestedBy.id === me.seerrUserId);
+                });
+                if (!reqs.length) return;
+                manageHost.appendChild(el('div', 'jfSeerrSub', me.canManage ? 'Requests' : 'Your requests'));
+                reqs.forEach(function (r) {
+                    var row = el('div', 'jfSeerrManageRow');
+                    var label = el('div');
+                    function drawLabel() {
+                        var who = r.requestedBy ? requesterName(r) : 'Someone';
+                        var parts = [who, r.status === 1 ? 'Pending' : r.status === 3 ? 'Declined' : 'Approved'];
+                        if (isTv && r.seasons && r.seasons.length) {
+                            parts.push('S' + seasonRanges(r.seasons.map(function (s) { return s.seasonNumber; })));
+                        }
+                        label.textContent = parts.join(' \u00b7 ');
+                    }
+                    drawLabel();
+                    row.appendChild(label);
+
+                    var btns = el('div', 'jfSeerrManageBtns');
+                    function act(text, cls, path, confirmText, onDone) {
+                        var btn = el('button', cls, text);
+                        btn.type = 'button';
+                        btn.addEventListener('click', function () {
+                            if (confirmText && !window.confirm(confirmText)) return;
+                            btns.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+                            api('request/' + r.id + '/' + path, { method: 'POST' }).then(function () {
+                                dirty = true;
+                                delete detailCache[item.mediaType + ':' + item.id];
+                                onDone();
+                            }).catch(function (err) {
+                                setStatus(err.message || 'Action failed', 'error');
+                                btns.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
+                            });
+                        });
+                        btns.appendChild(btn);
+                    }
+                    function removeRow() { row.remove(); }
+                    if (me.canManage && r.status === 1) {
+                        act('Approve', 'approve', 'approve', null, function () { r.status = 2; btns.remove(); drawLabel(); });
+                        act('Decline', 'decline', 'decline', null, function () { r.status = 3; btns.remove(); drawLabel(); });
+                    } else if (me.canManage) {
+                        act('Remove', 'decline', 'cancel', 'Remove this request?', removeRow);
+                    } else if (r.status === 1) {
+                        act('Cancel', 'decline', 'cancel', null, removeRow);
+                    }
+                    if (btns.children.length) row.appendChild(btns);
+                    manageHost.appendChild(row);
+                });
             }
 
             function findTrailer(d) {
