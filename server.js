@@ -44,7 +44,12 @@ function isId(v) {
 // Returns { ok, status, data, error }. Upstream 401/403 are reported as 502
 // so the browser can't mistake "our API key was refused" for "you're not
 // logged in".
-function seerrCall(method, path, body) {
+//
+// actAsUserId (optional): sends X-Api-User so Jellyseerr treats the call as
+// coming from that user rather than from the API key's owner (the admin).
+// Without it, an API-key call is the admin as far as Jellyseerr's permission
+// checks go.
+function seerrCall(method, path, body, actAsUserId) {
     var base = seerrBase();
     if (!base) return { ok: false, status: 500, error: 'JELLYSEERR_URL is not configured' };
 
@@ -55,6 +60,7 @@ function seerrCall(method, path, body) {
         },
         timeout: 15000
     };
+    if (actAsUserId && isId(actAsUserId)) opts.headers['X-Api-User'] = String(actAsUserId);
     var resp;
     if (method === 'GET') resp = jf.http.get(base + path, opts);
     else if (method === 'DELETE') resp = jf.http['delete'](base + path, opts);
@@ -384,10 +390,18 @@ jf.routes.post('/request', guarded(function (req, res, ctx) {
     }
     if (!needSeerrUser(res, ctx)) return;
 
+    // The request is made *as* the viewer via X-Api-User (see seerrCall), not
+    // just labelled with their id in the body. Putting userId in the body only
+    // changes who the request is attributed to (and whose quota applies) -
+    // Jellyseerr still decides auto-approval from whoever authenticated, which
+    // with the API key is the admin, so every request used to be approved
+    // instantly regardless of the viewer's own permissions. Acting as the
+    // viewer makes Jellyseerr apply their permissions: no Auto-Approve means
+    // the request waits as Pending. (userId must NOT also be sent in the body:
+    // Jellyseerr rejects that unless the caller has Manage Users/Requests.)
     var payload = {
         mediaType: body.mediaType,
-        mediaId: parseInt(body.mediaId, 10),
-        userId: ctx.seerrUser.id
+        mediaId: parseInt(body.mediaId, 10)
     };
     if (body.mediaType === 'tv') {
         // req.body arrays can arrive as .NET-backed objects in Jint, where
@@ -409,7 +423,18 @@ jf.routes.post('/request', guarded(function (req, res, ctx) {
         }
         payload.seasons = seasons;
     }
-    return send(res, seerrCall('POST', '/api/v1/request', payload));
+    var result = seerrCall('POST', '/api/v1/request', payload, ctx.seerrUser.id);
+
+    // Safety net: if Jellyseerr ignored X-Api-User (e.g. an unexpected
+    // version), the request would be attributed to - and approved as - the
+    // admin. Say so loudly in the Jellyfin log instead of failing silently.
+    if (result.ok && result.data && result.data.requestedBy &&
+        result.data.requestedBy.id !== ctx.seerrUser.id) {
+        jf.log.warn('jellyseerr-requests: request was attributed to Jellyseerr user ' +
+            result.data.requestedBy.id + ' instead of ' + ctx.seerrUser.id +
+            ' - X-Api-User may not be honoured by this Jellyseerr version');
+    }
+    return send(res, result);
 }));
 
 // Look up a request and check the viewer may act on it
