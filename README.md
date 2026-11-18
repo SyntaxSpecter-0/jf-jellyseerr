@@ -79,7 +79,7 @@ Shows Jellyfin's own pop-up message to the requester when their request
 becomes available. No other mod is needed. It only reaches people with
 Jellyfin open at that moment; for real phone notifications use Jellyseerr's
 own notification agents (Telegram, ntfy, Discord, etc.). This feature is why
-the mod declares the `jellyfin.write` permission (needed to send session
+the mod declares the `jellyfin.admin` and `jellyfin.write` permissions (JellyFrame gates session
 messages); it does nothing else with it.
 
 1. In this mod's settings, turn on **Notify when requests are available** and
@@ -95,3 +95,26 @@ messages); it does nothing else with it.
 
 The webhook route returns 404 unless both settings are set, and 401 without
 the secret.
+
+## Compatibility
+
+Tested against Jellyfin 12.4 (and written to keep working on 10.10/10.11), with
+Jellyseerr or its successor Seerr.
+
+- **Jellyfin 12 auth.** 12.x turns off the legacy `X-Emby-Token` header, so the
+  mod sends the standard `Authorization: MediaBrowser Token="..."` header as
+  well as the old one.
+- **Jellyfin 12 Modern layout (the default).** Its new app bar hides the old
+  tab strip, so the mod adds a **Requests** link next to Favourites. On the
+  Legacy layout it uses the normal home tab instead.
+- **JellyFrame version.** JellyFrame 1.5.5 can't start any *server* mod on
+  Jellyfin 12.4 (it was built against a newer `Microsoft.Data.Sqlite` than 12.4
+  ships), so this mod's API would not load there. JellyFrame 1.5.3 loads it fine
+  on 12.4. If the Requests tab shows "No route matched", this is why; check
+  Dashboard > Logs for `Could not load file or assembly 'Microsoft.Data.Sqlite'`.
+- **Seerr.** Same `/api/v1` API, `X-Api-Key`, `X-API-User` and linked Jellyfin
+  user IDs. The mod understands Seerr's extra statuses (blocklisted media,
+  failed/completed requests) and can retry failed requests.
+- **Permissions.** The mod declares `http`, `jellyfin.write` and
+  `jellyfin.admin`; the last two are only used to message the requester's open
+  Jellyfin sessions for the optional notifications.

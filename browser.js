@@ -254,18 +254,64 @@
         else if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
     }
 
+    // Jellyfin 12's Modern layout (the default) hides the old tab bar and shows
+    // a React app bar instead, whose tabs are plain links to #/home?tab=N.
+    // Jellyfin still activates our pane for ?tab=<index>, so all that's missing
+    // is a visible link: clone the bar's own Favourites link so it picks up the
+    // theme's styling. Does nothing on the Legacy layout (no such link there).
+    var NAV_LINK_ID = 'jfSeerrNavLink';
+    var NAV_ICON_PATH = 'M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z';
+
+    function ensureModernNav() {
+        if (!isHomePage()) return;
+        var tabBtn = document.getElementById(TAB_ID);
+        if (!tabBtn) return;
+        var bar = document.querySelector('header.MuiAppBar-root');
+        if (!bar) return;
+        var href = '#/home?tab=' + tabBtn.getAttribute('data-index');
+        var existing = document.getElementById(NAV_LINK_ID);
+        if (existing && bar.contains(existing)) {
+            markNavActive(existing);
+            return;
+        }
+        var template = bar.querySelector('a[href^="#/home?tab="]');
+        if (!template || !template.parentElement) return;
+        var link = template.cloneNode(true);
+        link.id = NAV_LINK_ID;
+        link.setAttribute('href', href);
+        link.removeAttribute('aria-current');
+        var path = link.querySelector('svg path');
+        if (path) path.setAttribute('d', NAV_ICON_PATH);
+        var icon = link.querySelector('svg');
+        if (icon) icon.removeAttribute('data-testid');
+        for (var i = 0; i < link.childNodes.length; i++) {
+            if (link.childNodes[i].nodeType === 3) link.childNodes[i].textContent = TAB_LABEL;
+        }
+        template.parentElement.appendChild(link);
+        markNavActive(link);
+    }
+
+    function markNavActive(link) {
+        var active = /[?&]tab=/.test(location.hash) && link.getAttribute('href').split('?')[1] === location.hash.split('?')[1];
+        link.style.opacity = active ? '1' : '';
+        link.style.fontWeight = active ? '700' : '';
+    }
+
     function cleanupIfNotHome() {
         if (isHomePage()) return;
         var btn = document.getElementById(TAB_ID);
         var content = document.getElementById(CONTENT_ID);
         if (btn && btn.parentElement) btn.parentElement.removeChild(btn);
         if (content && content.parentElement) content.parentElement.removeChild(content);
+        var navLink = document.getElementById(NAV_LINK_ID);
+        if (navLink && navLink.parentElement) navLink.parentElement.removeChild(navLink);
         closeAnyModal();
     }
 
     function tick() {
         cleanupIfNotHome();
         injectTab();
+        ensureModernNav();
     }
 
     window.addEventListener('hashchange', tick);
@@ -287,18 +333,36 @@
         return e;
     }
 
+    // The web client's access token. window.ApiClient is the long-standing
+    // source; the stored credentials are a fallback in case a newer web client
+    // stops exposing it.
     function jellyfinToken() {
         try {
-            return window.ApiClient && window.ApiClient.accessToken ? window.ApiClient.accessToken() : '';
-        } catch (e) {
-            return '';
-        }
+            if (window.ApiClient && window.ApiClient.accessToken) {
+                var t = window.ApiClient.accessToken();
+                if (t) return t;
+            }
+        } catch (e) { /* fall through */ }
+        try {
+            var creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || '{}');
+            var servers = creds.Servers || [];
+            var sid = window.ApiClient && window.ApiClient.serverId && window.ApiClient.serverId();
+            for (var i = 0; i < servers.length; i++) {
+                if (servers[i].AccessToken && (!sid || servers[i].Id === sid)) return servers[i].AccessToken;
+            }
+        } catch (e) { /* no stored credentials */ }
+        return '';
     }
 
     // Every call carries the viewer's Jellyfin token; server.js verifies it.
     function api(path, opts) {
         opts = opts || {};
-        var headers = { 'X-Emby-Token': jellyfinToken() };
+        var token = jellyfinToken();
+        // Both forms: Jellyfin 12 only parses Authorization, older servers/JellyFrame also take X-Emby-Token
+        var headers = {
+            'X-Emby-Token': token,
+            'Authorization': 'MediaBrowser Token="' + token + '"'
+        };
         if (opts.body) headers['Content-Type'] = 'application/json';
         return fetch(API_BASE + path, {
             method: opts.method || 'GET',
@@ -355,12 +419,26 @@
     // Request status (1 pending, 2 approved, 3 declined) combined with media status
     function requestStatusInfo(reqItem) {
         if (reqItem.status === 3) return { label: 'Declined', cls: 'declined' };
+        if (reqItem.status === 4) return { label: 'Failed', cls: 'declined' };
+        if (reqItem.status === 5) return { label: 'Available', cls: 'available' };
         if (reqItem.status === 1) return { label: 'Pending', cls: 'requested' };
         var ms = reqItem.media && reqItem.media.status;
         if (ms === 5) return { label: 'Available', cls: 'available' };
         if (ms === 4) return { label: 'Partial', cls: 'partial' };
         return { label: 'Processing', cls: 'requested' };
     }
+
+    // Media status badge for poster cards. 6 (blocklisted) is Seerr-only; 7
+    // (deleted) is deliberately not badged since it can be requested again.
+    function mediaBadgeInfo(status) {
+        if (status === 5) return { label: 'Available', cls: 'available' };
+        if (status === 4) return { label: 'Partial', cls: 'partial' };
+        if (status === 2 || status === 3) return { label: 'Requested', cls: 'requested' };
+        if (status === 6) return { label: 'Blocklisted', cls: 'declined' };
+        return null;
+    }
+
+    var REQUEST_LABELS = { 1: 'Pending', 2: 'Approved', 3: 'Declined', 4: 'Failed', 5: 'Completed' };
 
     function requesterName(reqItem) {
         var u = reqItem.requestedBy || {};
@@ -534,11 +612,8 @@
             imgWrap.appendChild(img);
             attachImageLoader(img, imgWrap);
 
-            if (status === 5 || status === 4 || status === 2 || status === 3) {
-                var badge = el('div', 'jfSeerrBadge ' + (status === 5 ? 'available' : status === 4 ? 'partial' : 'requested'),
-                    status === 5 ? 'Available' : status === 4 ? 'Partial' : 'Requested');
-                imgWrap.appendChild(badge);
-            }
+            var badgeInfo = mediaBadgeInfo(status);
+            if (badgeInfo) imgWrap.appendChild(el('div', 'jfSeerrBadge ' + badgeInfo.cls, badgeInfo.label));
             if (item.voteAverage) {
                 imgWrap.appendChild(el('div', 'jfSeerrRating', '★ ' + item.voteAverage.toFixed(1)));
             }
@@ -893,6 +968,9 @@
                 } else if (r.status === 1 && scope === 'mine') {
                     action('Cancel', 'cancel', 'cancel', function () { row.remove(); });
                 }
+                if (me.canManage && r.status === 4) {
+                    action('Retry', 'approve', 'retry', function () { r.status = 2; drawBadge(); });
+                }
                 // Managers can also remove approved/declined/processed requests
                 if (me.canManage && r.status !== 1) {
                     action('Remove', 'decline', 'cancel', function () { row.remove(); }, 'Remove this request?');
@@ -1120,7 +1198,10 @@
                 // For TV the overall status says nothing about what's still
                 // requestable (one requested season already makes the show
                 // "processing"), so only the per-season rows decide.
-                if (isTv) {
+                if (mediaStatus === 6) {
+                    primaryBtn.textContent = 'Blocklisted';
+                    primaryBtn.disabled = true;
+                } else if (isTv) {
                     var anyLeft = buildSeasonList(d);
                     primaryBtn.disabled = true; // until a season is picked
                     if (!anyLeft) primaryBtn.textContent = mediaStatus === 5 ? 'Available' : 'Already Requested';
@@ -1181,17 +1262,25 @@
             // everyone else sees their own, with Cancel while still pending.
             function drawManage(d) {
                 manageHost.innerHTML = '';
-                var reqs = ((d.mediaInfo && d.mediaInfo.requests) || []).filter(function (r) {
-                    return me.canManage || (r.requestedBy && me.seerrUserId && r.requestedBy.id === me.seerrUserId);
-                });
-                if (!reqs.length) return;
+                // Managers use the title's own request list. Everyone else
+                // asks for their own requests and matches by title, because
+                // newer Seerr trims requester details out of that list.
+                var source = me.canManage
+                    ? Promise.resolve((d.mediaInfo && d.mediaInfo.requests) || [])
+                    : api('requests?scope=mine&take=50').then(function (data) {
+                        return (data.results || []).filter(function (r) {
+                            return r.type === item.mediaType && r.media && r.media.tmdbId === item.id;
+                        });
+                    }).catch(function () { return []; });
+                source.then(function (reqs) {
+                if (!overlay.isConnected || !reqs.length) return;
                 manageHost.appendChild(el('div', 'jfSeerrSub', me.canManage ? 'Requests' : 'Your requests'));
                 reqs.forEach(function (r) {
                     var row = el('div', 'jfSeerrManageRow');
                     var label = el('div');
                     function drawLabel() {
                         var who = r.requestedBy ? requesterName(r) : 'Someone';
-                        var parts = [who, r.status === 1 ? 'Pending' : r.status === 3 ? 'Declined' : 'Approved'];
+                        var parts = [who, REQUEST_LABELS[r.status] || 'Approved'];
                         if (isTv && r.seasons && r.seasons.length) {
                             parts.push('S' + seasonRanges(r.seasons.map(function (s) { return s.seasonNumber; })));
                         }
@@ -1223,12 +1312,14 @@
                         act('Approve', 'approve', 'approve', null, function () { r.status = 2; btns.remove(); drawLabel(); });
                         act('Decline', 'decline', 'decline', null, function () { r.status = 3; btns.remove(); drawLabel(); });
                     } else if (me.canManage) {
+                        if (r.status === 4) act('Retry', 'approve', 'retry', null, function () { r.status = 2; btns.remove(); drawLabel(); });
                         act('Remove', 'decline', 'cancel', 'Remove this request?', removeRow);
                     } else if (r.status === 1) {
                         act('Cancel', 'decline', 'cancel', null, removeRow);
                     }
                     if (btns.children.length) row.appendChild(btns);
                     manageHost.appendChild(row);
+                });
                 });
             }
 
