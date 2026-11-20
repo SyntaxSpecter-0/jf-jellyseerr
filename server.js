@@ -5,7 +5,7 @@
 // settings dialog after enabling it in the Marketplace.
 //
 // Every route is guarded: the browser sends its Jellyfin access token in an
-// X-Emby-Token / Authorization header, and we verify it against Jellyfin's own /Users/Me
+// X-Emby-Token header, and we verify it against Jellyfin's own /Users/Me
 // before doing anything. Requests are then made as the viewer's own
 // Jellyseerr account (matched via Jellyseerr's jellyfinUserId), so quota,
 // "my requests" and permissions all follow the real user instead of the one
@@ -122,13 +122,8 @@ function verifyToken(token) {
     var cached = jf.cache.get(key);
     if (cached) return cached.valid ? cached : null;
 
-    // Jellyfin 12 disables the legacy X-Emby-* auth headers by default, so send
-    // the standard Authorization header; the legacy one stays for 10.10/10.11.
     var resp = jf.http.get(jellyfinBase() + '/Users/Me', {
-        headers: {
-            'Authorization': 'MediaBrowser Client="Jellyseerr Requests", Device="Server", DeviceId="jellyseerr-requests-mod", Version="1.0", Token="' + token + '"',
-            'X-Emby-Token': token
-        },
+        headers: { 'X-Emby-Token': token },
         timeout: 10000
     });
     var user = null;
@@ -223,7 +218,7 @@ function needSeerrUser(res, ctx) {
 // Jellyseerr's webhook agent POSTs here when media becomes available; we find
 // who requested it and show them Jellyfin's own in-app message on each of their
 // open sessions. Off unless NOTIFY_ENABLED and WEBHOOK_SECRET are both set.
-// Only reaches users with an open Jellyfin session (JellyFrame requires jellyfin.admin to list sessions and jellyfin.write to message them).
+// Only reaches users with an open Jellyfin session (needs jellyfin.write).
 
 function notifyEnabled() {
     var v = String(jf.vars['NOTIFY_ENABLED'] || '').toLowerCase();
@@ -324,8 +319,6 @@ jf.routes.get('/discover', guarded(function (req, res) {
             if (q['sortBy']) {
                 if (!SORTS[kind][q['sortBy']]) return res.status(400).json({ error: 'invalid sortBy' });
                 qs.push('sortBy=' + encodeURIComponent(q['sortBy']));
-                // Without a vote floor, "top rated" is dominated by titles with a handful of votes
-                if (q['sortBy'] === 'vote_average.desc') qs.push('voteCountGte=250');
             }
             if (q['minRating']) {
                 if (!isId(q['minRating']) || parseInt(q['minRating'], 10) > 10) {
@@ -479,13 +472,6 @@ jf.routes.post('/request/:id/cancel', guarded(function (req, res, ctx) {
     var r = seerrCall('DELETE', '/api/v1/request/' + id);
     if (!r.ok) return send(res, r);
     return res.json({ ok: true });
-}));
-
-// Retry a failed request (Seerr; managers only)
-jf.routes.post('/request/:id/retry', guarded(function (req, res, ctx) {
-    var id = req.pathParams['id'];
-    if (!loadOwnRequest(res, ctx, id, true)) return;
-    return send(res, seerrCall('POST', '/api/v1/request/' + id + '/retry'));
 }));
 
 // Report a problem with an available title. Jellyseerr attributes API-key
