@@ -1,246 +1,133 @@
 # Jellyseerr Requests for JellyFrame
 
-Jellyseerr Requests adds a **Requests** tab to your Jellyfin home screen, allowing users to browse and request movies and TV shows directly from Jellyfin.
-
-The interface is fully integrated into Jellyfin, supporting your existing theme and working on both desktop and mobile.
-
-Clicking a poster opens a details modal with the title's backdrop, overview, rating, and Request button. TV shows also include season selection.
-
-A **Recent Requests** section at the top of the page displays pending and processing requests.
-
-## Files
-
-The mod consists of three files:
-
-- **`server.js`** – Handles communication with Jellyseerr, including searching, discovering content, submitting requests, and retrieving request lists. Stores your Jellyseerr URL and API key.
-- **`browser.js`** – Adds the Requests tab and builds the interface, including search, poster grids, recent requests, and the details modal.
-- **`mods.json`** – Contains the mod manifest and configuration options.
-
-## Installation
-
-### 1. Add the files
-
-Place all three files in the root of your JellyFrame repository and push them to your `main` branch.
-
-### 2. Load the mod
-
-In Jellyfin, navigate to:
-
-**Dashboard → Mods → Marketplace**
-
-Paste the following URL into the marketplace:
-
-`https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/refs/heads/main/mods.json`
-
-Click **Load Mods**, then enable Jellyseerr Requests.
-
-### 3. Configure Jellyseerr
-
-Open the mod's settings and fill in:
-
-- **JELLYSEERR_URL** – Your Jellyseerr instance URL.
-- **JELLYSEERR_API_KEY** – Your API key, found under **Jellyseerr → Settings → General**.
-
-### 4. Apply
-
-Click **Save & Apply**, then hard refresh Jellyfin with `Ctrl + Shift + R`.
-
-### Updating
-
-Push your changes to GitHub to publish an update.
-
-If you're using jsDelivr, purge its cache after updating or pin the mod to a version tag.
-
-If an update isn't showing up, check JellyFrame's cache under:
-
-**Dashboard → Mods → Settings → Mod Cache → Purge**
+Adds a **Requests** tab to Jellyfin for browsing, requesting, managing, and reporting Jellyseerr or Seerr media.
 
 ## Features
 
-### Browse and discover
+- Trending, movie, TV, upcoming, genre, studio, network, rating, and search views.
+- Movie and TV details, trailers, cast, request quotas, and TV season selection.
+- Recent requests and per-user request history.
+- Cancel, approve, decline, remove, and retry controls where permitted.
+- **Play in Jellyfin** for available media.
+- Video, audio, subtitle, and other issue reporting.
+- Optional in-app notification when requested media becomes available.
+- Desktop and mobile layouts.
+- Jellyfin 12 Modern layout and older Legacy layout support.
 
-The Requests tab includes several ways to find content:
+## Required plugins
 
-- **Discover:** Trending movies and TV shows.
-- **Movies:** Browse movies with genre filters.
-- **TV Shows:** Browse TV shows with genre filters.
-- **Upcoming:** View upcoming releases.
-- **Search:** Find specific movies and TV shows.
+- JellyFrame 1.5.3
+- File Transformation
 
-All sections support **Load More** pagination.
+In JellyFrame settings, turn off **Use Loom Injector**. JellyFrame 1.5.3 does not work with Loom 1.1.0 injection.
 
-### Content details
+## Installation
 
-Clicking a poster opens a details modal containing:
+1. Install JellyFrame 1.5.3 and a File Transformation build compatible with your Jellyfin version.
+2. Restart Jellyfin.
+3. Open **Dashboard → JellyFrame → Settings** and turn off **Use Loom Injector**.
+4. Restart Jellyfin again.
+5. Open **Dashboard → Mods → Marketplace**.
+6. Load this manifest:
 
-- Backdrop and overview.
-- Ratings and genres.
-- Runtime and cast.
-- Trailers.
-- **Play in Jellyfin** for titles already in your library.
-- Request options and season selection for TV shows.
-- Request quota information.
+   `https://raw.githubusercontent.com/SyntaxSpecter-0/jf-jellyseerr/refs/heads/main/mods.json`
 
-### Request management
+7. Enable **Jellyseerr Requests**.
+8. Configure the required settings:
 
-The Requests page lets users:
+   | Setting | Value |
+   |---|---|
+   | `JELLYSEERR_URL` | Jellyseerr or Seerr base URL |
+   | `JELLYSEERR_API_KEY` | API key from **Settings → General** |
+   | `JELLYFIN_URL` | Address Jellyfin can use to reach itself, normally `http://localhost:8096` |
 
-- View their request history.
-- Check request statuses.
-- Cancel pending requests.
+9. Select **Save & Apply**.
+10. Hard-refresh Jellyfin with `Ctrl+Shift+R`.
 
-Users with Jellyseerr's **Manage Requests** or **Admin** permission, as well as Jellyfin administrators, also have access to an **Everyone** view.
-
-This includes request filters and options to approve or decline requests.
-
-### Report an issue
-
-Users can report problems with available titles directly through Jellyfin.
-
-Supported report types include:
-
-- Video
-- Audio
-- Subtitles
-- Other
-
-Reports automatically include the reporting user's Jellyfin username.
-
-## Authentication
-
-All API routes require a valid Jellyfin login.
-
-When the browser makes a request, it sends the user's Jellyfin access token to `server.js`. The server validates this token against Jellyfin's `/Users/Me` endpoint before processing the request.
-
-Missing or invalid tokens receive a `401 Unauthorized` response.
-
-You can test authentication by opening the following URL in a private or incognito window:
-
-`https://your-domain/JellyFrame/mods/jellyseerr-requests/api/discover`
-
-You should receive:
-
-```json id="7yd5uo"
-{"error":"Sign in to Jellyfin to use Requests"}
-```
-
-### User accounts
-
-Requests are submitted using each user's own Jellyseerr account.
-
-The mod matches Jellyfin users to Jellyseerr accounts using their linked Jellyfin user ID, falling back to their username if needed.
-
-Request quotas, history, and permissions are tied to the individual user.
-
-Users who haven't been imported into Jellyseerr can still browse content, but won't be able to submit requests.
-
-To import them, go to:
-
-**Jellyseerr → Users → Import Jellyfin Users**
-
-### Jellyfin URL
-
-The `JELLYFIN_URL` setting is the address your Jellyfin server uses to reach itself.
-
-The default is:
-
-`http://localhost:8096`
-
-Your Jellyseerr API key is stored on the server and never sent to the browser.
-
-Cloudflare Access can also be used to protect the API path.
-
-## Optional: Now Available notifications
-
-The mod can send a pop-up notification through Jellyfin when one of a user's requests becomes available.
-
-Notifications are sent to the user's active Jellyfin sessions. Users need to have Jellyfin open to receive them.
-
-For mobile notifications or alerts when Jellyfin is closed, use one of Jellyseerr's notification agents, such as Telegram, ntfy, or Discord.
-
-### Setup
-
-**1. Enable notifications in JellyFrame**
-
-In the mod settings:
-
-- Enable **Notify when requests are available**.
-- Set a **Webhook Secret** to any long random string.
-
-**2. Configure the Jellyseerr webhook**
-
-Go to **Jellyseerr → Settings → Notifications → Webhook** and enter:
-
-| Setting | Value |
-|---|---|
-| Webhook URL | `https://your-jellyfin/JellyFrame/mods/jellyseerr-requests/api/webhook/jellyseerr` |
-| Authorization Header | Your Webhook Secret |
-| Notification Types | Request Available only |
-
-Leave the JSON payload at its default settings. The mod reads `notification_type`, `subject`, and `request.request_id`.
-
-Enable the webhook agent and use **Test** to check the connection.
-
-**3. Check connectivity**
-
-Jellyseerr needs to be able to reach your Jellyfin URL.
-
-The webhook endpoint returns:
-
-- `404` if notifications haven't been enabled or the required settings are missing.
-- `401` if the supplied secret is incorrect.
+Import Jellyfin users under **Jellyseerr/Seerr → Users → Import Jellyfin Users** so requests use each viewer's account, permissions, and quota.
 
 ## Compatibility
 
-Tested with **Jellyfin 12.4**, with compatibility intended for Jellyfin 10.10 and 10.11.
+| Jellyfin | JellyFrame | Browser injection | Status |
+|---|---|---|---|
+| 10.11.11 | 1.5.3 | File Transformation; Loom injector off | Verified |
+| 12.4 | 1.5.3 | File Transformation 12.4 build; Loom injector off | Requires a matching File Transformation release |
 
-Supports both Jellyseerr and Seerr.
+Do not use JellyFrame 1.5.5. Its released server-mod runtime fails with a `Microsoft.Data.Sqlite` assembly error.
 
-### Jellyfin 12 authentication
+Jellyfin 12 Modern layout adds **Requests** to the app bar. Legacy layout adds it to the home tab bar.
 
-Jellyfin 12.x disables the legacy `X-Emby-Token` header.
+## Authentication
 
-The mod sends the standard `Authorization: MediaBrowser Token="..."` header alongside the older header to support different Jellyfin versions.
+All mod API routes require the current Jellyfin access token. Invalid or missing tokens receive `401 Unauthorized`.
 
-### Jellyfin 12 Modern layout
+Test the guard in a private browser window:
 
-Jellyfin 12's Modern layout replaces the old home-screen tab strip with a new app bar.
+`https://your-jellyfin/JellyFrame/mods/jellyseerr-requests/api/discover`
 
-In this layout, the mod adds a **Requests** link alongside Favourites.
+Expected response:
 
-On the Legacy layout, it uses the normal home-screen tab.
+```json
+{"error":"Sign in to Jellyfin to use Requests"}
+```
 
-### JellyFrame version
+The Jellyseerr/Seerr API key remains server-side.
 
-JellyFrame 1.5.5 has an issue loading server-side mods on Jellyfin 12.4 due to a `Microsoft.Data.Sqlite` dependency mismatch.
+## Available notifications
 
-**JellyFrame 1.5.3 works on Jellyfin 12.4.**
+Notifications appear in active Jellyfin sessions when Jellyseerr or Seerr reports that a request is available.
 
-If the Requests tab displays **No route matched**, check Dashboard → Logs for:
+1. Open the mod settings.
+2. Enable **Notify when requests are available**.
+3. Set **Webhook Secret** to a long random value.
+4. Open **Jellyseerr/Seerr → Settings → Notifications → Webhook**.
+5. Configure:
 
-`Could not load file or assembly 'Microsoft.Data.Sqlite'`
+   | Setting | Value |
+   |---|---|
+   | Webhook URL | `https://your-jellyfin/JellyFrame/mods/jellyseerr-requests/api/webhook/jellyseerr` |
+   | Authorization Header | The configured Webhook Secret |
+   | Notification Types | Request Available only |
 
-### Seerr support
+6. Keep the default webhook JSON payload.
+7. Enable and test the webhook.
 
-Seerr uses the same API structure as Jellyseerr.
+The webhook returns `404` when notifications are disabled or incomplete, and `401` when the secret is invalid.
 
-The mod uses:
+## Troubleshooting
 
-- `/api/v1` API endpoints.
-- `X-Api-Key` authentication.
-- `X-API-User` header.
-- Linked Jellyfin user IDs.
+### No route matched
 
-It also supports Seerr's additional request statuses, including blocklisted media and failed or completed requests. Failed requests can be retried through the mod.
+Confirm the Jellyfin log contains:
 
-### Permissions
+```text
+jellyseerr-requests: started
+Mod "jellyseerr-requests" loaded — 15 route(s)
+```
 
-The mod declares the following JellyFrame permissions:
+If the log contains a `Microsoft.Data.Sqlite` assembly error, replace JellyFrame 1.5.5 with 1.5.3 and restart Jellyfin.
 
-| Permission | Purpose |
+### Requests tab is missing
+
+Confirm the Jellyfin log contains:
+
+```text
+Successfully registered mod injection with File Transformation
+```
+
+If the log contains an `AmbiguousMatchException` for `LoomInterface.RegisterTransformation`, install File Transformation, turn off **Use Loom Injector**, and restart Jellyfin.
+
+### Changes are not appearing
+
+1. Open **Dashboard → Mods → Settings → Mod Cache**.
+2. Purge the cache.
+3. Select **Save & Apply**.
+4. Hard-refresh with `Ctrl+Shift+R`.
+
+## Permissions
+
+| Permission | Use |
 |---|---|
-| `http` | Communicating with Jellyseerr or Seerr. |
-| `jellyfin.write` | Sending messages to active Jellyfin sessions. |
-| `jellyfin.admin` | Accessing session messaging functionality. |
-
-The `jellyfin.write` and `jellyfin.admin` permissions are used for the optional **Now Available** notifications.
+| `http` | Jellyseerr or Seerr API requests |
+| `jellyfin.write` | Optional session notifications |
+| `jellyfin.admin` | Optional session lookup for notifications |
