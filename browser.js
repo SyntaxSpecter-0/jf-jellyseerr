@@ -1001,7 +1001,17 @@
             loadMore(0);
         }
 
+        // Set while an actor's filmography is on screen, so a refresh stays on it
+        var showingPerson = null;
+
+        // Redraws the current screen after something changed (e.g. a request was made)
+        function refreshView() {
+            if (showingPerson) showPerson(showingPerson);
+            else renderView();
+        }
+
         function renderView() {
+            showingPerson = null;
             body.innerHTML = '';
             renderNav();
             if (searchQuery) {
@@ -1063,6 +1073,7 @@
 
         // A person's films and shows, shown in place of the search results
         function showPerson(p) {
+            showingPerson = p;
             body.innerHTML = '';
             renderNav();
             var back = el('button', 'jfSeerrPill', '\u2190 Back to results');
@@ -1156,7 +1167,7 @@
                     pushed = false;
                     if (skipBack !== true) { try { history.back(); } catch (e) { /* ignore */ } }
                 }
-                if (dirty) { dirty = false; renderView(); }
+                if (dirty) { dirty = false; refreshView(); }
             }
             overlay.__jfClose = function () { closeModal(true); };
 
@@ -1583,7 +1594,7 @@
                         cancelBtn.textContent = 'Done';
                         cancelBtn.disabled = false;
                         delete detailCache[item.mediaType + ':' + item.id];
-                        renderView();
+                        refreshView();
                         setTimeout(closeModal, 1200);
                     })
                     .catch(function (err) {
