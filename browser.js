@@ -100,6 +100,12 @@
             C + ' .jfSeerrControls { display:flex; flex-wrap:wrap; gap:.5em; margin-bottom:1em; align-items:center; }' +
             C + ' .jfSeerrSelect { padding:.4em .6em; border-radius:6px; border:1px solid rgba(128,128,128,.4); background:rgba(128,128,128,.15); color:inherit; font-size:.85em; max-width:100%; }' +
             C + ' .jfSeerrSelect option { background:#222; color:#eee; }' +
+            C + ' .jfSeerrPeopleRow { display:flex; gap:1em; overflow-x:auto; padding-bottom:.5em; margin-bottom:1.5em; }' +
+            C + ' .jfSeerrPerson { flex:0 0 auto; width:92px; text-align:center; cursor:pointer; background:none; border:none; color:inherit; padding:0; font:inherit; }' +
+            C + ' .jfSeerrPerson .avatar { width:72px; height:72px; border-radius:50%; margin:0 auto .4em; background:rgba(128,128,128,.25); object-fit:cover; display:flex; align-items:center; justify-content:center; font-size:1.6em; font-weight:700; opacity:.9; }' +
+            C + ' .jfSeerrPerson:hover .avatar { box-shadow:0 0 0 2px #8b5cf6; }' +
+            C + ' .jfSeerrPerson .name { font-size:.8em; font-weight:600; line-height:1.2; }' +
+            C + ' .jfSeerrPerson .dept { font-size:.68em; opacity:.6; }' +
             C + ' .jfSeerrMore { display:block; margin:1.5em auto 2em; padding:.7em 2em; border:none; border-radius:2em; background:rgba(128,128,128,.25); color:inherit; font-weight:600; cursor:pointer; }' +
             C + ' .jfSeerrMore:hover { background:rgba(128,128,128,.4); }' +
             C + ' .jfSeerrMore:disabled { opacity:.5; cursor:default; }' +
@@ -494,7 +500,7 @@
         var searchWrap = el('div', 'jfSeerrSearchWrap');
         var input = el('input', 'emby-input');
         input.type = 'text';
-        input.placeholder = 'Search movies and shows...';
+        input.placeholder = 'Search movies, shows and actors...';
         searchWrap.appendChild(input);
         var clearBtn = el('button', 'jfSeerrSearchClear', '✕');
         clearBtn.type = 'button';
@@ -855,23 +861,31 @@
                 }
             }
 
+            // Bumped on every reload so a slow response for an old filter is ignored
+            var gen = 0;
+            // "Declined" is filtered here, so a page can come back with nothing to show;
+            // keep looking for at most this many pages before handing control back
+            var MAX_EMPTY_PAGES = 5;
+
             function reload() {
+                gen++;
                 skip = 0;
                 list.innerHTML = '';
                 moreBtn.style.display = 'none';
-                loadMore();
+                loadMore(0);
             }
 
             function note(text) {
                 list.appendChild(el('div', 'jfSeerrEmpty', text));
             }
 
-            function loadMore() {
+            function loadMore(emptyPages) {
+                var myGen = gen;
                 moreBtn.disabled = true;
                 var serverFilter = filter === 'declined' ? 'all' : filter;
                 var q = 'requests?scope=' + scope + '&filter=' + serverFilter + '&take=' + PAGE + '&skip=' + skip;
                 api(q).then(function (data) {
-                    if (!list.isConnected) return;
+                    if (myGen !== gen || !list.isConnected) return;
                     var results = data.results || [];
                     if (!results.length && skip === 0) { note('No requests yet.'); return; }
                     skip += results.length;
@@ -880,12 +894,15 @@
                     shown.forEach(function (r, i) { list.appendChild(buildRequestRow(r, i)); });
                     var total = data.pageInfo && data.pageInfo.results;
                     var more = results.length === PAGE && (!total || skip < total);
-                    if (!shown.length && more) { loadMore(); return; }
-                    if (!shown.length && !list.children.length) note('No requests found.');
+                    if (!shown.length && more && emptyPages < MAX_EMPTY_PAGES) { loadMore(emptyPages + 1); return; }
+                    if (!shown.length && !list.children.length) {
+                        note(more ? 'None in the most recent requests - tap Load more to keep looking.' : 'No requests found.');
+                    }
                     moreBtn.style.display = more ? '' : 'none';
                     moreBtn.disabled = false;
                 }).catch(function (err) {
                     console.error(err);
+                    if (myGen !== gen) return;
                     if (skip === 0) note(err.message || 'Could not load requests');
                     moreBtn.disabled = false;
                 });
@@ -979,20 +996,16 @@
                 return row;
             }
 
-            moreBtn.addEventListener('click', loadMore);
+            moreBtn.addEventListener('click', function () { loadMore(0); });
             drawControls();
-            loadMore();
+            loadMore(0);
         }
 
         function renderView() {
             body.innerHTML = '';
             renderNav();
             if (searchQuery) {
-                body.appendChild(el('div', 'jfSeerrSectionTitle', 'Results for “' + searchQuery + '”'));
-                var q = searchQuery;
-                body.appendChild(createFeed(function (page) {
-                    return api('search?query=' + encodeURIComponent(q) + '&page=' + page);
-                }));
+                renderSearch(searchQuery);
                 return;
             }
             if (view === 'discover') renderDiscover();
@@ -1000,6 +1013,74 @@
             else if (view === 'tv') renderGenreBrowse('tv');
             else if (view === 'upcoming') renderUpcoming();
             else if (view === 'requests') renderRequests();
+        }
+
+        // ---- Search results: people row + titles ----
+
+        function renderSearch(q) {
+            body.appendChild(el('div', 'jfSeerrSectionTitle', 'Results for \u201c' + q + '\u201d'));
+            var peopleTitle = el('div', 'jfSeerrSectionTitle', 'People');
+            var peopleRow = el('div', 'jfSeerrPeopleRow');
+            peopleTitle.style.display = 'none';
+            peopleRow.style.display = 'none';
+            isolateSwipes(peopleRow);
+            body.appendChild(peopleTitle);
+            body.appendChild(peopleRow);
+
+            function showPeople(results) {
+                var people = results.filter(function (r) { return r.mediaType === 'person'; }).slice(0, 8);
+                if (!people.length || !peopleRow.isConnected) return;
+                peopleTitle.style.display = '';
+                peopleRow.style.display = '';
+                people.forEach(function (p) { peopleRow.appendChild(buildPerson(p)); });
+            }
+
+            body.appendChild(createFeed(function (page) {
+                return api('search?query=' + encodeURIComponent(q) + '&page=' + page).then(function (data) {
+                    if (page === 1) showPeople(data.results || []);
+                    return data;
+                });
+            }));
+        }
+
+        function buildPerson(p) {
+            var btn = el('button', 'jfSeerrPerson');
+            btn.type = 'button';
+            if (p.profilePath) {
+                var img = el('img', 'avatar');
+                img.loading = 'lazy';
+                img.src = posterUrl(p.profilePath, 'w185');
+                img.alt = '';
+                btn.appendChild(img);
+            } else {
+                btn.appendChild(el('div', 'avatar', (p.name || '?').charAt(0).toUpperCase()));
+            }
+            btn.appendChild(el('div', 'name', p.name || 'Unknown'));
+            if (p.knownForDepartment) btn.appendChild(el('div', 'dept', p.knownForDepartment));
+            btn.addEventListener('click', function () { showPerson(p); });
+            return btn;
+        }
+
+        // A person's films and shows, shown in place of the search results
+        function showPerson(p) {
+            body.innerHTML = '';
+            renderNav();
+            var back = el('button', 'jfSeerrPill', '\u2190 Back to results');
+            back.type = 'button';
+            back.style.marginBottom = '1em';
+            back.addEventListener('click', renderView);
+            body.appendChild(back);
+            body.appendChild(el('div', 'jfSeerrSectionTitle', (p.name || 'Person') + (p.knownForDepartment ? ' \u00b7 ' + p.knownForDepartment : '')));
+            body.appendChild(createFeed(function () {
+                return api('person/' + p.id).then(function (data) {
+                    // One page: the endpoint returns the whole filmography. Newest first.
+                    var cast = (data.cast || []).filter(function (c) { return c.mediaType === 'movie' || c.mediaType === 'tv'; });
+                    cast.sort(function (a, b2) {
+                        return String(b2.releaseDate || b2.firstAirDate || '').localeCompare(String(a.releaseDate || a.firstAirDate || ''));
+                    });
+                    return { results: cast.slice(0, 80), totalPages: 1 };
+                });
+            }));
         }
 
         // ---- Search box ----

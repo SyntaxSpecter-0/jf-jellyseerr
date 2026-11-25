@@ -4,7 +4,8 @@ Adds a **Requests** tab to Jellyfin for browsing, requesting, managing, and repo
 
 ## Features
 
-- Trending, movie, TV, upcoming, genre, studio, network, rating, and search views.
+- Trending, movie, TV, upcoming, genre, studio, network, and rating views.
+- Search by title or by actor: matching people appear in a People row, and selecting one lists their films and shows.
 - Movie and TV details, trailers, cast, request quotas, and TV season selection.
 - Recent requests and per-user request history.
 - Cancel, approve, decline, remove, and retry controls where permitted.
@@ -50,8 +51,8 @@ Import Jellyfin users under **Jellyseerr/Seerr → Users → Import Jellyfin Use
 
 | Jellyfin | JellyFrame | Browser injection | Status |
 |---|---|---|---|
-| 10.11.11 | 1.5.3 | File Transformation; Loom injector off | Verified |
-| 12.4 | 1.5.3 | File Transformation 12.4 build; Loom injector off | Requires a matching File Transformation release |
+| 10.11.11 | 1.5.3.0 | File Transformation 3.0.0.0 (10.11.11 build); Loom injector off | Verified |
+| 12.4 | 1.5.3.0 | File Transformation 3.0.0.0 (12.0.0 build); Loom injector off | Verified |
 
 Do not use JellyFrame 1.5.5. Its released server-mod runtime fails with a `Microsoft.Data.Sqlite` assembly error.
 
@@ -131,3 +132,7 @@ If the log contains an `AmbiguousMatchException` for `LoomInterface.RegisterTran
 | `http` | Jellyseerr or Seerr API requests |
 | `jellyfin.write` | Optional session notifications |
 | `jellyfin.admin` | Optional session lookup for notifications |
+
+## Development
+
+Run the server tests with `node --test test/` (no dependencies; they run `server.js` against a fake JellyFrame). The same tests and a syntax check run on every push.

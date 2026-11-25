@@ -118,6 +118,9 @@ function extractToken(req) {
 
 // Returns { id, name, isAdmin } for a valid Jellyfin token, or null.
 function verifyToken(token) {
+    // Jellyfin tokens are 32 hex chars; refuse anything else before it reaches
+    // Jellyfin, the cache, or an outgoing header.
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) return null;
     var key = 'jfauth:' + token;
     var cached = jf.cache.get(key);
     if (cached) return cached.valid ? cached : null;
@@ -157,29 +160,38 @@ function normId(s) {
     return String(s || '').replace(/-/g, '').toLowerCase();
 }
 
-// Finds the Jellyseerr account for a Jellyfin user. Returns { id, permissions } or null.
+// Finds the Jellyseerr account for a Jellyfin user. Returns { id, permissions },
+// null if there is none, or undefined if Jellyseerr couldn't be reached.
+// The linked Jellyfin id is authoritative. The user name is only a fallback for
+// accounts with no linked id: a name match on an account linked to a *different*
+// Jellyfin id (deleted/re-created user) must not inherit its permissions.
 function resolveSeerrUser(user) {
     var key = 'seerrUser:' + user.id;
     var cached = jf.cache.get(key);
     if (cached) return cached.id ? cached : null;
 
-    var found = null;
+    var byId = null;
+    var byName = null;
     var wantId = normId(user.id);
     var wantName = String(user.name || '').toLowerCase();
     var skip = 0;
-    for (var page = 0; page < 20 && !found; page++) {
+    for (var page = 0; page < 20 && !byId; page++) {
         var r = seerrCall('GET', '/api/v1/user?take=100&skip=' + skip + '&sort=created');
-        if (!r.ok) return null;
+        if (!r.ok) return undefined;
         var results = (r.data && r.data.results) || [];
         for (var i = 0; i < results.length; i++) {
             var u = results[i];
-            if (u.jellyfinUserId && normId(u.jellyfinUserId) === wantId) { found = u; break; }
-            if (!found && wantName && String(u.jellyfinUsername || '').toLowerCase() === wantName) found = u;
+            if (u.jellyfinUserId) {
+                if (normId(u.jellyfinUserId) === wantId) { byId = u; break; }
+            } else if (!byName && wantName && String(u.jellyfinUsername || '').toLowerCase() === wantName) {
+                byName = u;
+            }
         }
         if (results.length < 100) break;
         skip += 100;
     }
 
+    var found = byId || byName;
     var entry = found ? { id: found.id, permissions: found.permissions || 0 } : { id: 0 };
     jf.cache.set(key, entry, found ? 300000 : 30000);
     return found ? entry : null;
@@ -200,6 +212,8 @@ function guarded(handler) {
         if (!user) return res.status(401).json({ error: 'Sign in to Jellyfin to use Requests' });
 
         var seerrUser = resolveSeerrUser(user);
+        // undefined = Jellyseerr couldn't be reached (null = reachable, no account)
+        if (seerrUser === undefined) return res.status(502).json({ error: 'Jellyseerr is unreachable' });
         var perms = seerrUser ? seerrUser.permissions : 0;
         var ctx = {
             user: user,
@@ -288,7 +302,7 @@ jf.routes.get('/me', guarded(function (req, res, ctx) {
     });
 }));
 
-// Search movies / tv
+// Search movies / tv / people (the browser shows people as a separate row)
 jf.routes.get('/search', guarded(function (req, res) {
     var q = req.query['query'] || '';
     var page = isId(req.query['page']) ? req.query['page'] : '1';
@@ -350,18 +364,55 @@ jf.routes.get('/genres', guarded(function (req, res) {
     return send(res, seerrCall('GET', '/api/v1/genres/' + type + '?language=en'));
 }));
 
+// Title detail embeds every request on the title, each with a full user object
+// (email, permissions...) because we call Jellyseerr as the admin. Browsers only
+// need who asked and what, so cut each requester down to id + display name.
+function scrubMediaInfo(data) {
+    var mi = data && data.mediaInfo;
+    if (!mi) return data;
+    var out = [];
+    var reqs = mi.requests || [];
+    for (var i = 0; i < reqs.length; i++) {
+        var r = reqs[i];
+        var who = r.requestedBy || {};
+        out.push({
+            id: r.id,
+            status: r.status,
+            is4k: r.is4k,
+            createdAt: r.createdAt,
+            seasons: r.seasons,
+            requestedBy: { id: who.id, displayName: who.displayName }
+        });
+    }
+    mi.requests = out;
+    delete mi.issues;
+    return data;
+}
+
+function sendDetail(res, r) {
+    if (r.ok) r.data = scrubMediaInfo(r.data);
+    return send(res, r);
+}
+
+// Films and shows a person appeared in (for actor search)
+jf.routes.get('/person/:id', guarded(function (req, res) {
+    var id = req.pathParams['id'];
+    if (!isId(id)) return res.status(400).json({ error: 'id is required' });
+    return send(res, seerrCall('GET', '/api/v1/person/' + id + '/combined_credits?language=en'));
+}));
+
 // TV show detail: seasons, cast, genres, videos, per-season status
 jf.routes.get('/tv/:id', guarded(function (req, res) {
     var id = req.pathParams['id'];
     if (!isId(id)) return res.status(400).json({ error: 'id is required' });
-    return send(res, seerrCall('GET', '/api/v1/tv/' + id + '?language=en'));
+    return sendDetail(res, seerrCall('GET', '/api/v1/tv/' + id + '?language=en'));
 }));
 
 // Movie detail: cast, genres, runtime, videos, status
 jf.routes.get('/movie/:id', guarded(function (req, res) {
     var id = req.pathParams['id'];
     if (!isId(id)) return res.status(400).json({ error: 'id is required' });
-    return send(res, seerrCall('GET', '/api/v1/movie/' + id + '?language=en'));
+    return sendDetail(res, seerrCall('GET', '/api/v1/movie/' + id + '?language=en'));
 }));
 
 // Requests. scope=mine -> the viewer's own; scope=all -> everyone's (managers only)
